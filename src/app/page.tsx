@@ -9,8 +9,8 @@ type Mode = "path" | "line";
 
 const ROWS = 7;
 const COLS = 6;
-const TILE_SIZE = 64;
-const TILE_GAP = 10;
+const BASE_TILE_SIZE = 76;
+const BASE_TILE_GAP = 12;
 const WORD_POOL = [
   "PEAR",
   "APPLE",
@@ -28,7 +28,7 @@ const WORD_POOL = [
   "CHERRY",
   "PAPAYA",
 ];
-const WORD_COUNT = 6;
+const WORD_COUNT = 10;
 const LETTERS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
 
 const shuffleArray = <T,>(items: T[]) => {
@@ -47,11 +47,27 @@ const pickWords = () => {
 const createLetterGrid = () =>
   Array.from({ length: ROWS }, () => Array.from({ length: COLS }, () => null));
 
-const findPlacement = (
-  grid: (string | null)[][],
-  word: string,
-  mode: Mode,
-) => {
+const createInitialGame = () => {
+  let words = pickWords();
+  let board = buildBoard(words, "path");
+  let attempts = 0;
+  while (!board && attempts < 8) {
+    words = pickWords();
+    board = buildBoard(words, "path");
+    attempts += 1;
+  }
+  if (!board) {
+    words = ["PEAR", "LIME", "PLUM"];
+    board = buildBoard(words, "path");
+  }
+  if (!board) {
+    words = ["PEAR"];
+    board = buildBoard(words, "path");
+  }
+  return { words, board: board! };
+};
+
+const findPlacement = (grid: (string | null)[][], word: string, mode: Mode) => {
   const positions = shuffleArray(
     Array.from({ length: ROWS * COLS }, (_, index) => index),
   );
@@ -71,12 +87,7 @@ const findPlacement = (
       for (const [dr, dc] of shuffledDirections) {
         const endRow = row + dr * (word.length - 1);
         const endCol = col + dc * (word.length - 1);
-        if (
-          endRow < 0 ||
-          endRow >= ROWS ||
-          endCol < 0 ||
-          endCol >= COLS
-        ) {
+        if (endRow < 0 || endRow >= ROWS || endCol < 0 || endCol >= COLS) {
           continue;
         }
         const path: Array<{ row: number; col: number }> = [];
@@ -84,8 +95,7 @@ const findPlacement = (
         for (let i = 0; i < word.length; i += 1) {
           const nextRow = row + dr * i;
           const nextCol = col + dc * i;
-          const cellLetter = grid[nextRow][nextCol];
-          if (cellLetter && cellLetter !== word[i]) {
+          if (grid[nextRow][nextCol]) {
             valid = false;
             break;
           }
@@ -111,7 +121,7 @@ const findPlacement = (
       return null;
     }
     const cellLetter = grid[row]?.[col];
-    if (cellLetter && cellLetter !== word[index]) {
+    if (cellLetter) {
       return null;
     }
     const nextPath = [...path, { row, col }];
@@ -123,12 +133,7 @@ const findPlacement = (
     for (const [dr, dc] of shuffledDirections) {
       const nextRow = row + dr;
       const nextCol = col + dc;
-      if (
-        nextRow >= 0 &&
-        nextRow < ROWS &&
-        nextCol >= 0 &&
-        nextCol < COLS
-      ) {
+      if (nextRow >= 0 && nextRow < ROWS && nextCol >= 0 && nextCol < COLS) {
         const result = dfs(nextRow, nextCol, index + 1, visited, nextPath);
         if (result) {
           visited.delete(key);
@@ -149,160 +154,6 @@ const findPlacement = (
     }
   }
   return null;
-};
-
-const findPlacementOnIds = (
-  grid: Cell[][],
-  word: string,
-  letterGrid: (string | null)[][],
-  mode: Mode,
-) => {
-  const positions = shuffleArray(
-    Array.from({ length: ROWS * COLS }, (_, index) => index),
-  );
-  const directions: Array<[number, number]> = [
-    [1, 0],
-    [-1, 0],
-    [0, 1],
-    [0, -1],
-  ];
-
-  if (mode === "line") {
-    for (const flatIndex of positions) {
-      const row = Math.floor(flatIndex / COLS);
-      const col = flatIndex % COLS;
-      const shuffledDirections = shuffleArray(directions);
-      for (const [dr, dc] of shuffledDirections) {
-        const endRow = row + dr * (word.length - 1);
-        const endCol = col + dc * (word.length - 1);
-        if (
-          endRow < 0 ||
-          endRow >= ROWS ||
-          endCol < 0 ||
-          endCol >= COLS
-        ) {
-          continue;
-        }
-        const path: Array<{ row: number; col: number }> = [];
-        let valid = true;
-        for (let i = 0; i < word.length; i += 1) {
-          const nextRow = row + dr * i;
-          const nextCol = col + dc * i;
-          const id = grid[nextRow]?.[nextCol];
-          const assigned = letterGrid[nextRow]?.[nextCol];
-          if (!id || (assigned && assigned !== word[i])) {
-            valid = false;
-            break;
-          }
-          path.push({ row: nextRow, col: nextCol });
-        }
-        if (valid) {
-          return path;
-        }
-      }
-    }
-    return null;
-  }
-
-  const dfs = (
-    row: number,
-    col: number,
-    index: number,
-    visited: Set<string>,
-    path: Array<{ row: number; col: number }>,
-  ): Array<{ row: number; col: number }> | null => {
-    const key = `${row}-${col}`;
-    const id = grid[row]?.[col];
-    const assigned = letterGrid[row]?.[col];
-    if (!id || visited.has(key) || (assigned && assigned !== word[index])) {
-      return null;
-    }
-    const nextPath = [...path, { row, col }];
-    if (index === word.length - 1) {
-      return nextPath;
-    }
-    visited.add(key);
-    const shuffledDirections = shuffleArray(directions);
-    for (const [dr, dc] of shuffledDirections) {
-      const nextRow = row + dr;
-      const nextCol = col + dc;
-      if (
-        nextRow >= 0 &&
-        nextRow < ROWS &&
-        nextCol >= 0 &&
-        nextCol < COLS
-      ) {
-        const result = dfs(nextRow, nextCol, index + 1, visited, nextPath);
-        if (result) {
-          visited.delete(key);
-          return result;
-        }
-      }
-    }
-    visited.delete(key);
-    return null;
-  };
-
-  for (const flatIndex of positions) {
-    const row = Math.floor(flatIndex / COLS);
-    const col = flatIndex % COLS;
-    const result = dfs(row, col, 0, new Set(), []);
-    if (result) {
-      return result;
-    }
-  }
-  return null;
-};
-
-const imprintWordsOnGrid = (
-  grid: Cell[][],
-  tiles: Record<string, Tile>,
-  words: string[],
-  mode: Mode,
-) => {
-  let bestLetterGrid: (string | null)[][] | null = null;
-  let bestPlaced = 0;
-
-  for (let attempt = 0; attempt < 30; attempt += 1) {
-    const letterGrid: (string | null)[][] = Array.from({ length: ROWS }, () =>
-      Array.from({ length: COLS }, () => null),
-    );
-    let placed = 0;
-    const orderedWords = shuffleArray(words);
-    for (const word of orderedWords) {
-      const placement = findPlacementOnIds(grid, word, letterGrid, mode);
-      if (!placement) {
-        break;
-      }
-      placement.forEach(({ row, col }, index) => {
-        letterGrid[row][col] = word[index];
-      });
-      placed += 1;
-    }
-    if (placed === words.length) {
-      bestLetterGrid = letterGrid;
-      break;
-    }
-    if (placed > bestPlaced) {
-      bestPlaced = placed;
-      bestLetterGrid = letterGrid;
-    }
-  }
-
-  const finalLetterGrid =
-    bestLetterGrid ??
-    Array.from({ length: ROWS }, () => Array.from({ length: COLS }, () => null));
-
-  grid.forEach((row, rowIndex) => {
-    row.forEach((id, colIndex) => {
-      if (!id) {
-        return;
-      }
-      const assigned = finalLetterGrid[rowIndex]?.[colIndex];
-      tiles[id].letter =
-        assigned ?? LETTERS[Math.floor(Math.random() * LETTERS.length)];
-    });
-  });
 };
 
 const buildBoard = (words: string[], mode: Mode) => {
@@ -323,7 +174,9 @@ const buildBoard = (words: string[], mode: Mode) => {
       continue;
     }
     const filled = grid.map((row) =>
-      row.map((cell) => cell ?? LETTERS[Math.floor(Math.random() * LETTERS.length)]),
+      row.map(
+        (cell) => cell ?? LETTERS[Math.floor(Math.random() * LETTERS.length)],
+      ),
     );
 
     let idCounter = 0;
@@ -337,20 +190,7 @@ const buildBoard = (words: string[], mode: Mode) => {
     );
     return { grid: idGrid, tiles };
   }
-
-  let idCounter = 0;
-  const tiles: Record<string, Tile> = {};
-  const idGrid: Cell[][] = Array.from({ length: ROWS }, () =>
-    Array.from({ length: COLS }, () => {
-      const id = `tile-${idCounter++}`;
-      tiles[id] = {
-        id,
-        letter: LETTERS[Math.floor(Math.random() * LETTERS.length)],
-      };
-      return id;
-    }),
-  );
-  return { grid: idGrid, tiles };
+  return null;
 };
 
 const normalizeGrid = (grid: Cell[][]) => {
@@ -398,11 +238,15 @@ const applyRemoval = (grid: Cell[][], removed: Set<string>) => {
 
 export default function Home() {
   const [mode, setMode] = useState<Mode>("path");
-  const initialWordsRef = useRef(pickWords());
-  const initialBoardRef = useRef(buildBoard(initialWordsRef.current, "path"));
+  const initialGameRef = useRef(createInitialGame());
+  const initialWordsRef = useRef(initialGameRef.current.words);
+  const initialBoardRef = useRef(initialGameRef.current.board);
   const tilesRef = useRef(initialBoardRef.current.tiles);
   const boardRef = useRef<HTMLDivElement>(null);
   const hintTimerRef = useRef<number | null>(null);
+  const [wordInput, setWordInput] = useState(
+    initialWordsRef.current.join(", "),
+  );
 
   const [grid, setGrid] = useState<Cell[][]>(initialBoardRef.current.grid);
   const [wordList, setWordList] = useState<string[]>(initialWordsRef.current);
@@ -418,6 +262,9 @@ export default function Home() {
   );
   const [isDragging, setIsDragging] = useState(false);
   const [locked, setLocked] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [tileSize, setTileSize] = useState(BASE_TILE_SIZE);
+  const [tileGap, setTileGap] = useState(BASE_TILE_GAP);
 
   const selectedRef = useRef(selected);
   const lockedRef = useRef(locked);
@@ -443,6 +290,37 @@ export default function Home() {
         window.clearTimeout(hintTimerRef.current);
       }
     };
+  }, []);
+
+  useEffect(() => {
+    if (!settingsOpen) {
+      return;
+    }
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setSettingsOpen(false);
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [settingsOpen]);
+
+  useEffect(() => {
+    const updateSizing = () => {
+      const padding = 48;
+      const availableWidth = Math.max(280, window.innerWidth - padding);
+      const desiredBoardWidth =
+        COLS * BASE_TILE_SIZE + (COLS - 1) * BASE_TILE_GAP;
+      const desiredShellWidth = desiredBoardWidth + 48;
+      const scale = Math.min(1, availableWidth / desiredShellWidth);
+      const minTile = 40;
+      const minGap = 6;
+      setTileSize(Math.max(minTile, Math.floor(BASE_TILE_SIZE * scale)));
+      setTileGap(Math.max(minGap, Math.floor(BASE_TILE_GAP * scale)));
+    };
+    updateSizing();
+    window.addEventListener("resize", updateSizing);
+    return () => window.removeEventListener("resize", updateSizing);
   }, []);
 
   const positions = useMemo(() => {
@@ -555,10 +433,7 @@ export default function Home() {
 
       const removed = new Set(selection);
       window.setTimeout(() => {
-        setGrid((prev) => {
-          const droppedGrid = applyRemoval(prev, removed);
-          return droppedGrid;
-        });
+        setGrid((prev) => applyRemoval(prev, removed));
         setClearing([]);
         setLocked(false);
       }, 350);
@@ -749,6 +624,10 @@ export default function Home() {
   const resetBoard = useCallback(
     (words: string[], nextMessage: string, modeOverride?: Mode) => {
       const board = buildBoard(words, modeOverride ?? mode);
+      if (!board) {
+        setMessage("Couldn't place all words. Try fewer or shorter words.");
+        return false;
+      }
       tilesRef.current = board.tiles;
       setGrid(board.grid);
       setSelected([]);
@@ -757,6 +636,7 @@ export default function Home() {
       setLocked(false);
       setIsDragging(false);
       setMessage(nextMessage);
+      return true;
     },
     [mode],
   );
@@ -794,8 +674,7 @@ export default function Home() {
       window.clearTimeout(hintTimerRef.current);
       hintTimerRef.current = null;
     }
-    const nextWords =
-      remainingWords.length > 0 ? remainingWords : pickWords();
+    const nextWords = remainingWords.length > 0 ? remainingWords : pickWords();
     if (remainingWords.length === 0) {
       setWordList(nextWords);
       setRemainingWords(nextWords);
@@ -812,92 +691,209 @@ export default function Home() {
       window.clearTimeout(hintTimerRef.current);
       hintTimerRef.current = null;
     }
-    setMode(nextMode);
-    const nextWords =
-      remainingWords.length > 0 ? remainingWords : pickWords();
+    const nextWords = remainingWords.length > 0 ? remainingWords : pickWords();
     if (remainingWords.length === 0) {
       setWordList(nextWords);
       setRemainingWords(nextWords);
       setEarned([]);
     }
-    resetBoard(
+    const success = resetBoard(
       nextWords,
       nextMode === "line"
         ? "Mode: row/column words only."
         : "Mode: free path words.",
       nextMode,
     );
+    if (success) {
+      setMode(nextMode);
+    }
   };
 
-  const boardWidth = COLS * TILE_SIZE + (COLS - 1) * TILE_GAP;
-  const boardHeight = ROWS * TILE_SIZE + (ROWS - 1) * TILE_GAP;
+  const parseWords = useCallback(
+    (input: string) => {
+      const tokens = input.toUpperCase().match(/[A-Z]+/g) ?? [];
+      const maxLen = mode === "line" ? Math.max(ROWS, COLS) : ROWS * COLS;
+      const unique: string[] = [];
+      const seen = new Set<string>();
+      tokens.forEach((token) => {
+        if (token.length < 2 || token.length > maxLen) {
+          return;
+        }
+        if (!seen.has(token)) {
+          seen.add(token);
+          unique.push(token);
+        }
+      });
+      let warning: string | null = null;
+      const maxWords = 10;
+      if (unique.length > maxWords) {
+        warning = `Using first ${maxWords} words.`;
+      }
+      return { words: unique.slice(0, maxWords), warning };
+    },
+    [mode],
+  );
+
+  const handleGenerate = () => {
+    if (lockedRef.current) {
+      return;
+    }
+    const { words, warning } = parseWords(wordInput);
+    if (words.length === 0) {
+      setMessage(
+        "Enter at least one word (A-Z). Shorter words are easier to place.",
+      );
+      return;
+    }
+    const success = resetBoard(words, warning ?? "New board generated.");
+    if (!success) {
+      return;
+    }
+    setWordList(words);
+    setRemainingWords(words);
+    setEarned([]);
+    setWordInput(words.join(", "));
+  };
+
+  const boardWidth = COLS * tileSize + (COLS - 1) * tileGap;
+  const boardHeight = ROWS * tileSize + (ROWS - 1) * tileGap;
   const boardShellWidth = boardWidth + 48;
+  const score = foundWords.length * 120;
 
   return (
-    <div className="relative min-h-screen overflow-hidden bg-[#133B63] text-slate-100">
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,#2b6aa4,transparent_55%)] opacity-70" />
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_80%,#f8d35b33,transparent_50%)]" />
-      <div className="absolute -left-16 -top-16 h-64 w-64 rounded-full bg-[#244c7b] blur-3xl" />
-      <div className="absolute -bottom-20 right-10 h-72 w-72 rounded-full bg-[#1a2f57] blur-3xl" />
+    <div className="relative min-h-screen overflow-hidden bg-[#0b1726] text-slate-100">
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,#21406a,transparent_55%)] opacity-80" />
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_10%_85%,#f7d35f40,transparent_55%)]" />
+      <div className="absolute -left-20 -top-24 h-72 w-72 rounded-full bg-[#173053] blur-3xl" />
+      <div className="absolute -bottom-20 right-6 h-72 w-72 rounded-full bg-[#0f2442] blur-3xl" />
+      <div className="absolute right-1/3 top-16 h-24 w-24 rounded-3xl bg-[#f7d35f]/20 blur-2xl" />
 
-      <div className="relative z-10 mx-auto flex min-h-screen max-w-5xl flex-col px-6 py-8">
-        <header className="flex flex-wrap items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <button className="flex h-12 w-12 items-center justify-center rounded-full bg-white/10 text-xl shadow-[inset_0_0_0_1px_rgba(255,255,255,0.15)]">
-              ⚙️
-            </button>
-            <button className="flex h-12 w-12 items-center justify-center rounded-full bg-white/10 text-2xl shadow-[inset_0_0_0_1px_rgba(255,255,255,0.15)]">
-              …
-            </button>
-          </div>
+      <div className="relative z-10 mx-auto flex min-h-screen max-w-4xl flex-col px-6 py-8">
+        <header className="relative flex items-center justify-between">
+          <button
+            onClick={() => setSettingsOpen(true)}
+            className="flex h-11 w-11 items-center justify-center rounded-2xl bg-white/10 text-xl shadow-[inset_0_0_0_1px_rgba(255,255,255,0.2)] transition hover:bg-white/20"
+            aria-label="Open settings"
+          >
+            ⚙️
+          </button>
 
-          <div className="rounded-full bg-white/15 px-8 py-3 text-center text-lg uppercase tracking-[0.2em] text-white/80 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.2)]">
+          <div className="pointer-events-none absolute left-1/2 -translate-x-1/2 rounded-full bg-white/10 px-6 py-2 text-center text-xs font-semibold uppercase tracking-[0.4em] text-white/70 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.2)]">
             Fruits
           </div>
 
-          <div className="flex items-center gap-3 rounded-full bg-white/10 px-4 py-2 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.15)]">
-            <span className="text-2xl">🪙</span>
-            <span className="text-lg font-semibold">120</span>
-            <button className="ml-2 rounded-full bg-[#f7d35f] px-3 py-1 text-sm font-semibold text-[#3b2f12] shadow">
-              +
-            </button>
-            <button
-              onClick={handleHint}
-              className="ml-1 flex h-8 w-8 items-center justify-center rounded-full bg-white/15 text-sm shadow-[inset_0_0_0_1px_rgba(255,255,255,0.2)]"
-              aria-label="Hint"
-            >
-              💡
-            </button>
-            <button
-              onClick={handleShuffle}
-              className="flex h-8 w-8 items-center justify-center rounded-full bg-white/15 text-sm shadow-[inset_0_0_0_1px_rgba(255,255,255,0.2)]"
-              aria-label="Shuffle"
-            >
-              🔀
-            </button>
+          <div className="rounded-full bg-white/10 px-5 py-2 text-center text-xl font-semibold uppercase tracking-[0.25em] text-[#f7d35f] shadow-[inset_0_0_0_1px_rgba(255,255,255,0.2)]">
+            {score} pts
           </div>
         </header>
 
-        <main className="flex flex-1 flex-col items-center justify-center gap-8 py-10">
-          <div className="flex flex-col items-center gap-4">
-            <div className="rounded-full bg-[#c5a43a] px-8 py-2 text-2xl font-semibold tracking-[0.3em] text-[#2a220f] shadow-[0_10px_20px_rgba(0,0,0,0.25)]">
-              {targetWord ?? "ALL FOUND"}
-            </div>
-            <div className="max-w-md rounded-2xl border border-white/20 bg-[#171a3b]/80 px-6 py-4 text-center text-base text-white/80 shadow-[0_18px_40px_rgba(0,0,0,0.3)]">
-              <p className="leading-relaxed">
-                {message}{" "}
-                {targetWord
-                  ? `Make ${targetWord} to clear tiles, drop the stack, and pull columns toward the center.`
-                  : "Shuffle to deal a fresh set of hidden words."}
-              </p>
+        <main className="flex flex-1 flex-col items-center justify-center py-10">
+          <div
+            className="relative w-full max-w-full"
+            style={{ width: boardShellWidth }}
+          >
+            <div
+              ref={boardRef}
+              onPointerMove={handleBoardPointerMove}
+              className="relative touch-none rounded-[34px] bg-white/5 p-6 shadow-[0_24px_40px_rgba(0,0,0,0.4)] ring-1 ring-white/20"
+            >
+              <div
+                className="relative"
+                style={{ width: boardWidth, height: boardHeight }}
+              >
+                {tilesInPlay.map((tile) => {
+                  const isSelected = selected.includes(tile.id);
+                  const isClearing = clearing.includes(tile.id);
+                  const isHinted = hintPath.includes(tile.id);
+                  const x = tile.col * (tileSize + tileGap);
+                  const y = tile.row * (tileSize + tileGap);
+                  return (
+                    <button
+                      key={tile.id}
+                      data-tile-id={tile.id}
+                      onPointerDown={() => handlePointerDown(tile.id)}
+                      onPointerEnter={() => extendSelection(tile.id)}
+                      className={`absolute flex touch-none select-none items-center justify-center rounded-2xl font-semibold shadow-[0_10px_18px_rgba(0,0,0,0.35)] transition-transform duration-300 ${
+                        isClearing
+                          ? "scale-90 bg-[#f7d35f]/70 text-[#2a220f] opacity-40"
+                          : isSelected
+                            ? "bg-[#f7d35f] text-[#2a220f]"
+                            : "bg-[#d7d3c8] text-[#1d1b15]"
+                      } ${isHinted ? "ring-4 ring-[#74d3ff]" : ""}`}
+                      style={{
+                        width: tileSize,
+                        height: tileSize,
+                        fontSize: Math.max(18, Math.round(tileSize * 0.45)),
+                        transform: `translate3d(${x}px, ${y}px, 0)`,
+                      }}
+                    >
+                      {tile.letter}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
           </div>
 
-          <div className="flex w-full flex-col items-center gap-6 lg:flex-row lg:items-end lg:justify-center">
-            <div className="flex w-full max-w-sm flex-col gap-3">
-              <div className="rounded-2xl bg-white/10 px-5 py-4 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.15)]">
-                <p className="text-xs uppercase tracking-[0.3em] text-white/60">
+          <p className="mt-6 text-xs uppercase tracking-[0.4em] text-white/45">
+            Drag to select. Release to drop.
+          </p>
+        </main>
+      </div>
+
+      {settingsOpen ? (
+        <div className="fixed inset-0 z-30 flex items-start justify-center bg-[#08121f]/80 px-6 py-10 backdrop-blur">
+          <div className="w-full max-w-3xl rounded-[32px] border border-white/10 bg-[#0f2238]/95 p-6 shadow-[0_30px_60px_rgba(0,0,0,0.5)]">
+            <div className="flex flex-wrap items-center justify-between gap-4">
+              <div>
+                <p className="text-xs uppercase tracking-[0.4em] text-white/60">
                   Settings
+                </p>
+                <p className="text-2xl font-[var(--font-display)] text-[#f7d35f]">
+                  Words Drop
+                </p>
+              </div>
+              <button
+                onClick={() => setSettingsOpen(false)}
+                className="rounded-full bg-white/10 px-4 py-2 text-xs font-semibold uppercase tracking-[0.3em] text-white/70 transition hover:bg-white/20"
+              >
+                Close
+              </button>
+            </div>
+
+            <div className="mt-6 grid gap-4 lg:grid-cols-[1.1fr_0.9fr]">
+              <div className="rounded-2xl bg-white/5 p-4 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.08)]">
+                <p className="text-xs uppercase tracking-[0.35em] text-white/60">
+                  Target word
+                </p>
+                <p className="mt-2 text-3xl font-[var(--font-display)] text-white">
+                  {targetWord ?? "All found"}
+                </p>
+                <p className="mt-3 text-sm text-white/70">
+                  {message}{" "}
+                  {targetWord
+                    ? `Make ${targetWord} to clear tiles, drop the stack, and pull columns inward.`
+                    : "Shuffle for a new set of hidden words."}
+                </p>
+                <div className="mt-4 flex flex-wrap gap-2">
+                  <button
+                    onClick={handleHint}
+                    className="rounded-full bg-[#74d3ff]/20 px-4 py-2 text-xs font-semibold uppercase tracking-[0.3em] text-[#bfeaff] transition hover:bg-[#74d3ff]/30"
+                  >
+                    Hint
+                  </button>
+                  <button
+                    onClick={handleShuffle}
+                    className="rounded-full bg-white/10 px-4 py-2 text-xs font-semibold uppercase tracking-[0.3em] text-white/80 transition hover:bg-white/20"
+                  >
+                    Shuffle
+                  </button>
+                </div>
+              </div>
+
+              <div className="rounded-2xl bg-white/5 p-4 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.08)]">
+                <p className="text-xs uppercase tracking-[0.35em] text-white/60">
+                  Mode
                 </p>
                 <div className="mt-3 grid grid-cols-2 gap-2">
                   <button
@@ -905,7 +901,7 @@ export default function Home() {
                     className={`rounded-xl px-3 py-2 text-xs font-semibold uppercase tracking-[0.25em] transition ${
                       mode === "path"
                         ? "bg-[#f7d35f] text-[#2a220f]"
-                        : "bg-white/15 text-white/70 hover:bg-white/25"
+                        : "bg-white/10 text-white/70 hover:bg-white/20"
                     }`}
                   >
                     Path
@@ -915,30 +911,58 @@ export default function Home() {
                     className={`rounded-xl px-3 py-2 text-xs font-semibold uppercase tracking-[0.25em] transition ${
                       mode === "line"
                         ? "bg-[#f7d35f] text-[#2a220f]"
-                        : "bg-white/15 text-white/70 hover:bg-white/25"
+                        : "bg-white/10 text-white/70 hover:bg-white/20"
                     }`}
                   >
                     Row/Col
                   </button>
                 </div>
+                <p className="mt-3 text-xs uppercase tracking-[0.3em] text-white/50">
+                  {mode === "line"
+                    ? `Max length ${Math.max(ROWS, COLS)} in row/col mode.`
+                    : "Paths can turn. Use short words for best fit."}
+                </p>
+                <div className="mt-4">
+                  <p className="text-xs uppercase tracking-[0.35em] text-white/60">
+                    Current word
+                  </p>
+                  <p className="mt-2 text-2xl font-[var(--font-display)] text-[#f7d35f]">
+                    {selectedWord || "—"}
+                  </p>
+                </div>
               </div>
-              <div className="rounded-2xl bg-white/10 px-5 py-4 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.15)]">
-                <p className="text-xs uppercase tracking-[0.3em] text-white/60">
-                  Current word
+
+              <div className="rounded-2xl bg-white/5 p-4 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.08)] lg:col-span-2">
+                <p className="text-xs uppercase tracking-[0.35em] text-white/60">
+                  Word list
                 </p>
-                <p className="mt-2 text-3xl font-[var(--font-display)] text-[#f7d35f]">
-                  {selectedWord || "—"}
-                </p>
+                <textarea
+                  value={wordInput}
+                  onChange={(event) => setWordInput(event.target.value)}
+                  placeholder="apple, pear, lime"
+                  rows={3}
+                  className="mt-3 w-full resize-none rounded-xl bg-white/10 px-3 py-2 text-sm text-white/90 placeholder:text-white/40 focus:outline-none focus:ring-2 focus:ring-[#74d3ff]/70"
+                />
+                <button
+                  onClick={handleGenerate}
+                  className="mt-3 w-full rounded-xl bg-[#f7d35f] px-3 py-2 text-xs font-semibold uppercase tracking-[0.3em] text-[#2a220f] transition hover:brightness-95"
+                >
+                  Generate board
+                </button>
               </div>
-              <div className="rounded-2xl bg-white/10 px-5 py-4 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.15)]">
-                <p className="text-xs uppercase tracking-[0.3em] text-white/60">
-                  Hidden words
-                </p>
+
+              <div className="rounded-2xl bg-white/5 p-4 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.08)] lg:col-span-2">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <p className="text-xs uppercase tracking-[0.35em] text-white/60">
+                    Hidden words
+                  </p>
+                  <p className="text-xs uppercase tracking-[0.35em] text-white/40">
+                    Found {foundWords.length}/{wordList.length}
+                  </p>
+                </div>
                 <div className="mt-3 flex flex-wrap gap-2">
                   {wordList.length === 0 ? (
-                    <span className="text-sm text-white/60">
-                      Loading words
-                    </span>
+                    <span className="text-sm text-white/60">Loading words</span>
                   ) : (
                     wordList.map((word) => {
                       const found = foundWords.includes(word);
@@ -958,15 +982,14 @@ export default function Home() {
                   )}
                 </div>
               </div>
-              <div className="rounded-2xl bg-white/10 px-5 py-4 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.15)]">
-                <p className="text-xs uppercase tracking-[0.3em] text-white/60">
-                  Found
+
+              <div className="rounded-2xl bg-white/5 p-4 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.08)] lg:col-span-2">
+                <p className="text-xs uppercase tracking-[0.35em] text-white/60">
+                  Found words
                 </p>
                 <div className="mt-3 flex flex-wrap gap-2">
                   {earned.length === 0 ? (
-                    <span className="text-sm text-white/60">
-                      No words yet
-                    </span>
+                    <span className="text-sm text-white/60">No words yet</span>
                   ) : (
                     earned.map((word) => (
                       <span
@@ -980,56 +1003,9 @@ export default function Home() {
                 </div>
               </div>
             </div>
-
-            <div className="relative" style={{ width: boardShellWidth }}>
-              <div
-                ref={boardRef}
-                onPointerMove={handleBoardPointerMove}
-                className="relative touch-none rounded-[30px] bg-white/5 p-6 shadow-[0_24px_40px_rgba(0,0,0,0.35)] ring-1 ring-white/15"
-              >
-                <div
-                  className="relative"
-                  style={{ width: boardWidth, height: boardHeight }}
-                >
-                  {tilesInPlay.map((tile) => {
-                    const isSelected = selected.includes(tile.id);
-                    const isClearing = clearing.includes(tile.id);
-                    const isHinted = hintPath.includes(tile.id);
-                    const x = tile.col * (TILE_SIZE + TILE_GAP);
-                    const y = tile.row * (TILE_SIZE + TILE_GAP);
-                    return (
-                      <button
-                        key={tile.id}
-                        data-tile-id={tile.id}
-                        onPointerDown={() => handlePointerDown(tile.id)}
-                        onPointerEnter={() => extendSelection(tile.id)}
-                        className={`absolute flex h-16 w-16 touch-none select-none items-center justify-center rounded-2xl text-2xl font-semibold shadow-[0_8px_16px_rgba(0,0,0,0.35)] transition-transform duration-300 ${
-                          isClearing
-                            ? "scale-90 bg-[#f7d35f]/70 text-[#2a220f] opacity-40"
-                            : isSelected
-                              ? "bg-[#f7d35f] text-[#2a220f]"
-                              : "bg-[#c9c7bf] text-[#1d1b15]"
-                        } ${isHinted ? "ring-4 ring-[#74d3ff]" : ""}`}
-                        style={{
-                          transform: `translate3d(${x}px, ${y}px, 0)`,
-                        }}
-                      >
-                        {tile.letter}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            </div>
           </div>
-
-          <div className="flex flex-wrap items-center gap-3 text-xs uppercase tracking-[0.4em] text-white/50">
-            <span>Drag to select</span>
-            <span>Release to drop</span>
-            <span>Columns pull inward</span>
-          </div>
-        </main>
-      </div>
+        </div>
+      ) : null}
     </div>
   );
 }
