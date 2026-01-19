@@ -23,3 +23,25 @@ body {
   color: var(--foreground);
   font-family: var(--font-body), sans-serif;
 }
+
+@keyframes tile-drop {
+  0% {
+    transform: translate3d(
+        var(--tile-x),
+        calc(var(--tile-y) - 18px),
+        0
+      )
+      scale(var(--tile-scale))
+      rotate(var(--tile-rotate));
+  }
+  70% {
+    transform: translate3d(var(--tile-x), var(--tile-y), 0)
+      scale(var(--tile-scale))
+      rotate(var(--tile-rotate));
+  }
+  100% {
+    transform: translate3d(var(--tile-x), var(--tile-y), 0)
+      scale(var(--tile-scale))
+      rotate(var(--tile-rotate));
+  }
+}

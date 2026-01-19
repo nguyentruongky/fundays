@@ -6,30 +6,434 @@ import type { PointerEvent } from "react";
 type Cell = string | null;
 type Tile = { id: string; letter: string };
 type Mode = "path" | "line";
+type Topic = { name: string; words: string[] };
 
-const ROWS = 7;
-const COLS = 6;
 const BASE_TILE_SIZE = 76;
 const BASE_TILE_GAP = 12;
-const WORD_POOL = [
-  "PEAR",
-  "APPLE",
-  "PLUM",
-  "LIME",
-  "MELON",
-  "GRAPE",
-  "FIG",
-  "KIWI",
-  "BERRY",
-  "ORANGE",
-  "LEMON",
-  "MANGO",
-  "GUAVA",
-  "CHERRY",
-  "PAPAYA",
-];
 const WORD_COUNT = 10;
-const LETTERS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+
+const TOPIC_LIBRARY: Topic[] = [
+  {
+    name: "Fruits",
+    words: [
+      "APPLE",
+      "BANANA",
+      "CHERRY",
+      "GRAPE",
+      "LEMON",
+      "MANGO",
+      "ORANGE",
+      "PEACH",
+      "PEAR",
+      "PLUM",
+    ],
+  },
+  {
+    name: "Vegetables",
+    words: [
+      "BEET",
+      "CARROT",
+      "CELERY",
+      "GARLIC",
+      "ONION",
+      "PEPPER",
+      "POTATO",
+      "RADISH",
+      "SPINACH",
+      "TOMATO",
+    ],
+  },
+  {
+    name: "Animals",
+    words: [
+      "CAT",
+      "DOG",
+      "HORSE",
+      "LION",
+      "MOUSE",
+      "PANDA",
+      "RABBIT",
+      "TIGER",
+      "WHALE",
+      "ZEBRA",
+    ],
+  },
+  {
+    name: "Birds",
+    words: [
+      "EAGLE",
+      "FALCON",
+      "FINCH",
+      "GULL",
+      "HAWK",
+      "HERON",
+      "OWL",
+      "ROBIN",
+      "SPARROW",
+      "SWAN",
+    ],
+  },
+  {
+    name: "Colors",
+    words: [
+      "AMBER",
+      "BLUE",
+      "CORAL",
+      "GREEN",
+      "IVORY",
+      "OLIVE",
+      "PINK",
+      "PURPLE",
+      "SILVER",
+      "TEAL",
+    ],
+  },
+  {
+    name: "Weather",
+    words: [
+      "BREEZE",
+      "CLOUD",
+      "FROST",
+      "HAZE",
+      "RAIN",
+      "SLEET",
+      "SNOW",
+      "STORM",
+      "SUN",
+      "WIND",
+    ],
+  },
+  {
+    name: "Household",
+    words: [
+      "BROOM",
+      "CHAIR",
+      "CLOCK",
+      "COUCH",
+      "DRESSER",
+      "LAMP",
+      "PILLOW",
+      "RUG",
+      "SHELF",
+      "TABLE",
+    ],
+  },
+  {
+    name: "Kitchen",
+    words: [
+      "BOWL",
+      "FORK",
+      "GLASS",
+      "KNIFE",
+      "LADLE",
+      "MUG",
+      "PAN",
+      "PLATE",
+      "SPOON",
+      "TOASTER",
+    ],
+  },
+  {
+    name: "Clothing",
+    words: [
+      "BELT",
+      "COAT",
+      "DRESS",
+      "GLOVE",
+      "HAT",
+      "JACKET",
+      "PANTS",
+      "SCARF",
+      "SHIRT",
+      "SOCK",
+    ],
+  },
+  {
+    name: "Footwear",
+    words: [
+      "BOOT",
+      "CLOG",
+      "HEEL",
+      "LOAFER",
+      "MOC",
+      "RUNNER",
+      "SANDAL",
+      "SHOE",
+      "SNEAKER",
+      "SLIPPER",
+    ],
+  },
+  {
+    name: "School",
+    words: [
+      "BOOK",
+      "CLASS",
+      "DESK",
+      "EXAM",
+      "GRADE",
+      "LESSON",
+      "PENCIL",
+      "QUIZ",
+      "STUDY",
+      "TEACHER",
+    ],
+  },
+  {
+    name: "Office",
+    words: [
+      "BADGE",
+      "BRIEF",
+      "AGENDA",
+      "DESK",
+      "EMAIL",
+      "FILE",
+      "MEETING",
+      "NOTES",
+      "PRINTER",
+      "REPORT",
+    ],
+  },
+  {
+    name: "Sports",
+    words: [
+      "BALL",
+      "BAT",
+      "COURT",
+      "GOAL",
+      "HOOP",
+      "RACE",
+      "RINK",
+      "SCORE",
+      "SWIM",
+      "TRACK",
+    ],
+  },
+  {
+    name: "Transport",
+    words: [
+      "BIKE",
+      "BOAT",
+      "BUS",
+      "CAR",
+      "FERRY",
+      "PLANE",
+      "SUBWAY",
+      "TAXI",
+      "TRAIN",
+      "TRAM",
+    ],
+  },
+  {
+    name: "City",
+    words: [
+      "AVENUE",
+      "BRIDGE",
+      "ALLEY",
+      "MARKET",
+      "METRO",
+      "PARK",
+      "PLAZA",
+      "STREET",
+      "TOWER",
+      "TUNNEL",
+    ],
+  },
+  {
+    name: "Nature",
+    words: [
+      "CLIFF",
+      "FOREST",
+      "GLEN",
+      "HILL",
+      "LAKE",
+      "MEADOW",
+      "OCEAN",
+      "RIVER",
+      "STONE",
+      "VALLEY",
+    ],
+  },
+  {
+    name: "Body",
+    words: [
+      "ARM",
+      "BACK",
+      "BONE",
+      "EAR",
+      "FACE",
+      "HAND",
+      "HEART",
+      "LEG",
+      "SKIN",
+      "TOOTH",
+    ],
+  },
+  {
+    name: "Family",
+    words: [
+      "AUNT",
+      "BABY",
+      "BROTHER",
+      "COUSIN",
+      "CHILD",
+      "FATHER",
+      "MOTHER",
+      "SISTER",
+      "SON",
+      "UNCLE",
+    ],
+  },
+  {
+    name: "Emotions",
+    words: [
+      "ANGRY",
+      "BRAVE",
+      "CALM",
+      "EAGER",
+      "HAPPY",
+      "PROUD",
+      "QUIET",
+      "SAD",
+      "SHY",
+      "WARM",
+    ],
+  },
+  {
+    name: "Music",
+    words: [
+      "ALBUM",
+      "BAND",
+      "BEAT",
+      "CHORD",
+      "DRUM",
+      "GUITAR",
+      "MELODY",
+      "NOTE",
+      "PIANO",
+      "RHYTHM",
+    ],
+  },
+  {
+    name: "Technology",
+    words: [
+      "APP",
+      "CABLE",
+      "CHIP",
+      "CLOUD",
+      "CODE",
+      "DATA",
+      "DEVICE",
+      "SCREEN",
+      "SERVER",
+      "WIRE",
+    ],
+  },
+  {
+    name: "Travel",
+    words: [
+      "BAG",
+      "BOARD",
+      "HOTEL",
+      "MAP",
+      "VISA",
+      "ROUTE",
+      "STAMP",
+      "LUGGAGE",
+      "TICKET",
+      "TOUR",
+    ],
+  },
+  {
+    name: "Beach",
+    words: [
+      "SAND",
+      "SHELL",
+      "SURF",
+      "TIDE",
+      "WAVE",
+      "SUNSET",
+      "PIER",
+      "CANOPY",
+      "DRIFT",
+      "DUNE",
+    ],
+  },
+  {
+    name: "Space",
+    words: [
+      "ASTRO",
+      "COMET",
+      "EARTH",
+      "GALAXY",
+      "METEOR",
+      "MOON",
+      "ORBIT",
+      "ROCKET",
+      "SATURN",
+      "STAR",
+    ],
+  },
+  {
+    name: "Time",
+    words: [
+      "ALARM",
+      "CLOCK",
+      "DAWN",
+      "HOUR",
+      "MINUTE",
+      "MONTH",
+      "NIGHT",
+      "NOON",
+      "SEASON",
+      "WEEK",
+    ],
+  },
+  {
+    name: "Tools",
+    words: [
+      "AXE",
+      "DRILL",
+      "FILE",
+      "HAMMER",
+      "LEVEL",
+      "NAIL",
+      "PLIERS",
+      "SAW",
+      "SCREW",
+      "WRENCH",
+    ],
+  },
+  {
+    name: "Health",
+    words: [
+      "BANDAGE",
+      "CLINIC",
+      "DOCTOR",
+      "WORKOUT",
+      "HEART",
+      "MEDIC",
+      "NURSE",
+      "PAIN",
+      "REST",
+      "VITAMIN",
+    ],
+  },
+  {
+    name: "Holidays",
+    words: [
+      "BANNER",
+      "CANDLE",
+      "FAMILY",
+      "FESTIVE",
+      "GIFT",
+      "PARTY",
+      "PARADE",
+      "TRIP",
+      "WISH",
+      "WRAP",
+    ],
+  },
+];
 
 const shuffleArray = <T,>(items: T[]) => {
   const array = [...items];
@@ -40,36 +444,83 @@ const shuffleArray = <T,>(items: T[]) => {
   return array;
 };
 
-const pickWords = () => {
-  return shuffleArray(WORD_POOL).slice(0, WORD_COUNT);
+const pickWords = (words: string[]) => {
+  return shuffleArray(words).slice(0, WORD_COUNT);
 };
 
-const createLetterGrid = () =>
-  Array.from({ length: ROWS }, () => Array.from({ length: COLS }, () => null));
+const computeGridLayout = (words: string[], mode: Mode) => {
+  const totalLetters = words.reduce((sum, word) => sum + word.length, 0);
+  const maxWordLength = words.reduce(
+    (max, word) => Math.max(max, word.length),
+    0,
+  );
+  let cols = Math.ceil(Math.sqrt(totalLetters));
+  if (mode === "line" && maxWordLength > cols) {
+    cols = maxWordLength;
+  }
+  const rows = Math.ceil(totalLetters / cols);
+  const rowLengths = Array.from({ length: rows }, () => cols);
+  let extra = rows * cols - totalLetters;
+  let rowIndex = rows - 1;
+  while (extra > 0) {
+    rowLengths[rowIndex] -= 1;
+    extra -= 1;
+    rowIndex = rowIndex === 0 ? rows - 1 : rowIndex - 1;
+  }
+  return { rows, cols, rowLengths };
+};
+
+const createLetterGrid = (rows: number, cols: number): (string | null)[][] =>
+  Array.from({ length: rows }, () => Array.from({ length: cols }, () => null));
 
 const createInitialGame = () => {
-  let words = pickWords();
-  let board = buildBoard(words, "path");
   let attempts = 0;
-  while (!board && attempts < 8) {
-    words = pickWords();
-    board = buildBoard(words, "path");
+  const topicPool = TOPIC_LIBRARY;
+  while (attempts < 12) {
+    const topic = topicPool[Math.floor(Math.random() * topicPool.length)];
+    const words = pickWords(topic.words);
+    const layout = computeGridLayout(words, "path");
+    const board = buildBoard(
+      words,
+      "path",
+      layout.rows,
+      layout.cols,
+      layout.rowLengths,
+    );
+    if (board) {
+      return { topic, words, board };
+    }
     attempts += 1;
   }
-  if (!board) {
-    words = ["PEAR", "LIME", "PLUM"];
-    board = buildBoard(words, "path");
-  }
-  if (!board) {
-    words = ["PEAR"];
-    board = buildBoard(words, "path");
-  }
-  return { words, board: board! };
+  const fallbackTopic = topicPool[0];
+  const fallbackWords = pickWords(fallbackTopic.words);
+  const fallbackLayout = computeGridLayout(fallbackWords, "path");
+  const fallbackBoard = buildBoard(
+    fallbackWords,
+    "path",
+    fallbackLayout.rows,
+    fallbackLayout.cols,
+    fallbackLayout.rowLengths,
+  );
+  return { topic: fallbackTopic, words: fallbackWords, board: fallbackBoard! };
 };
 
-const findPlacement = (grid: (string | null)[][], word: string, mode: Mode) => {
+const isValidCell = (
+  row: number,
+  col: number,
+  rowLengths: number[],
+) => col >= 0 && row >= 0 && row < rowLengths.length && col < rowLengths[row];
+
+const findPlacement = (
+  grid: (string | null)[][],
+  word: string,
+  mode: Mode,
+  rows: number,
+  cols: number,
+  rowLengths: number[],
+) => {
   const positions = shuffleArray(
-    Array.from({ length: ROWS * COLS }, (_, index) => index),
+    Array.from({ length: rows * cols }, (_, index) => index),
   );
 
   const directions: Array<[number, number]> = [
@@ -81,13 +532,16 @@ const findPlacement = (grid: (string | null)[][], word: string, mode: Mode) => {
 
   if (mode === "line") {
     for (const flatIndex of positions) {
-      const row = Math.floor(flatIndex / COLS);
-      const col = flatIndex % COLS;
+      const row = Math.floor(flatIndex / cols);
+      const col = flatIndex % cols;
+      if (!isValidCell(row, col, rowLengths)) {
+        continue;
+      }
       const shuffledDirections = shuffleArray(directions);
       for (const [dr, dc] of shuffledDirections) {
         const endRow = row + dr * (word.length - 1);
         const endCol = col + dc * (word.length - 1);
-        if (endRow < 0 || endRow >= ROWS || endCol < 0 || endCol >= COLS) {
+        if (endRow < 0 || endRow >= rows || endCol < 0 || endCol >= cols) {
           continue;
         }
         const path: Array<{ row: number; col: number }> = [];
@@ -95,6 +549,10 @@ const findPlacement = (grid: (string | null)[][], word: string, mode: Mode) => {
         for (let i = 0; i < word.length; i += 1) {
           const nextRow = row + dr * i;
           const nextCol = col + dc * i;
+          if (!isValidCell(nextRow, nextCol, rowLengths)) {
+            valid = false;
+            break;
+          }
           if (grid[nextRow][nextCol]) {
             valid = false;
             break;
@@ -120,6 +578,9 @@ const findPlacement = (grid: (string | null)[][], word: string, mode: Mode) => {
     if (visited.has(key)) {
       return null;
     }
+    if (!isValidCell(row, col, rowLengths)) {
+      return null;
+    }
     const cellLetter = grid[row]?.[col];
     if (cellLetter) {
       return null;
@@ -133,7 +594,7 @@ const findPlacement = (grid: (string | null)[][], word: string, mode: Mode) => {
     for (const [dr, dc] of shuffledDirections) {
       const nextRow = row + dr;
       const nextCol = col + dc;
-      if (nextRow >= 0 && nextRow < ROWS && nextCol >= 0 && nextCol < COLS) {
+      if (nextRow >= 0 && nextRow < rows && nextCol >= 0 && nextCol < cols) {
         const result = dfs(nextRow, nextCol, index + 1, visited, nextPath);
         if (result) {
           visited.delete(key);
@@ -146,8 +607,11 @@ const findPlacement = (grid: (string | null)[][], word: string, mode: Mode) => {
   };
 
   for (const flatIndex of positions) {
-    const row = Math.floor(flatIndex / COLS);
-    const col = flatIndex % COLS;
+    const row = Math.floor(flatIndex / cols);
+    const col = flatIndex % cols;
+    if (!isValidCell(row, col, rowLengths)) {
+      continue;
+    }
     const result = dfs(row, col, 0, new Set(), []);
     if (result) {
       return result;
@@ -156,12 +620,26 @@ const findPlacement = (grid: (string | null)[][], word: string, mode: Mode) => {
   return null;
 };
 
-const buildBoard = (words: string[], mode: Mode) => {
-  for (let attempt = 0; attempt < 80; attempt += 1) {
-    const grid = createLetterGrid();
+const buildBoard = (
+  words: string[],
+  mode: Mode,
+  rows: number,
+  cols: number,
+  rowLengths: number[],
+) => {
+  const ordered = [...words].sort((a, b) => b.length - a.length);
+  for (let attempt = 0; attempt < 120; attempt += 1) {
+    const grid = createLetterGrid(rows, cols);
     let placedAll = true;
-    for (const word of words) {
-      const placement = findPlacement(grid, word, mode);
+    for (const word of ordered) {
+      const placement = findPlacement(
+        grid,
+        word,
+        mode,
+        rows,
+        cols,
+        rowLengths,
+      );
       if (!placement) {
         placedAll = false;
         break;
@@ -173,67 +651,90 @@ const buildBoard = (words: string[], mode: Mode) => {
     if (!placedAll) {
       continue;
     }
-    const filled = grid.map((row) =>
-      row.map(
-        (cell) => cell ?? LETTERS[Math.floor(Math.random() * LETTERS.length)],
-      ),
-    );
-
     let idCounter = 0;
     const tiles: Record<string, Tile> = {};
-    const idGrid: Cell[][] = filled.map((row) =>
-      row.map((letter) => {
+    const idGrid: Cell[][] = grid.map((row, rowIndex) =>
+      row.map((letter, colIndex) => {
+        if (!letter || !isValidCell(rowIndex, colIndex, rowLengths)) {
+          return null;
+        }
         const id = `tile-${idCounter++}`;
         tiles[id] = { id, letter };
         return id;
       }),
     );
-    return { grid: idGrid, tiles };
+    return { grid: idGrid, tiles, rows, cols, rowLengths };
   }
   return null;
 };
 
-const normalizeGrid = (grid: Cell[][]) => {
+const normalizeGrid = (
+  grid: Cell[][],
+  rows: number,
+  cols: number,
+  rowLengths: number[],
+) => {
   const columns: string[][] = [];
-  for (let col = 0; col < COLS; col += 1) {
+  const validRowsByCol: number[][] = [];
+  for (let col = 0; col < cols; col += 1) {
+    const validRows: number[] = [];
     const stack: string[] = [];
-    for (let row = ROWS - 1; row >= 0; row -= 1) {
+    for (let row = rows - 1; row >= 0; row -= 1) {
+      if (!isValidCell(row, col, rowLengths)) {
+        continue;
+      }
+      validRows.push(row);
       const id = grid[row][col];
       if (id) {
         stack.push(id);
       }
     }
     columns.push(stack);
+    validRowsByCol.push(validRows);
   }
 
-  const nonEmpty = columns.filter((column) => column.length > 0);
-  const emptyCount = COLS - nonEmpty.length;
-  const leftPadding = Math.floor(emptyCount / 2);
-  const rightPadding = emptyCount - leftPadding;
-  const centeredColumns = [
-    ...Array.from({ length: leftPadding }, () => [] as string[]),
-    ...nonEmpty,
-    ...Array.from({ length: rightPadding }, () => [] as string[]),
-  ];
+  const isRectangular = rowLengths.every((len) => len === cols);
+  const orderedColumns = isRectangular
+    ? (() => {
+        const nonEmpty = columns.filter((column) => column.length > 0);
+        const emptyCount = cols - nonEmpty.length;
+        const leftPadding = Math.floor(emptyCount / 2);
+        const rightPadding = emptyCount - leftPadding;
+        return [
+          ...Array.from({ length: leftPadding }, () => [] as string[]),
+          ...nonEmpty,
+          ...Array.from({ length: rightPadding }, () => [] as string[]),
+        ];
+      })()
+    : columns;
 
-  const nextGrid: Cell[][] = Array.from({ length: ROWS }, () =>
-    Array.from({ length: COLS }, () => null),
+  const nextGrid: Cell[][] = Array.from({ length: rows }, () =>
+    Array.from({ length: cols }, () => null),
   );
-  centeredColumns.forEach((column, col) => {
+  orderedColumns.forEach((column, col) => {
+    const validRows = validRowsByCol[col] ?? [];
     column.forEach((id, index) => {
-      const row = ROWS - 1 - index;
-      nextGrid[row][col] = id;
+      const row = validRows[index];
+      if (row !== undefined) {
+        nextGrid[row][col] = id;
+      }
     });
   });
 
   return nextGrid;
 };
 
-const applyRemoval = (grid: Cell[][], removed: Set<string>) => {
+const applyRemoval = (
+  grid: Cell[][],
+  removed: Set<string>,
+  rows: number,
+  cols: number,
+  rowLengths: number[],
+) => {
   const pruned = grid.map((row) =>
     row.map((id) => (id && !removed.has(id) ? id : null)),
   );
-  return normalizeGrid(pruned);
+  return normalizeGrid(pruned, rows, cols, rowLengths);
 };
 
 export default function Home() {
@@ -241,6 +742,12 @@ export default function Home() {
   const initialGameRef = useRef(createInitialGame());
   const initialWordsRef = useRef(initialGameRef.current.words);
   const initialBoardRef = useRef(initialGameRef.current.board);
+  const [topic, setTopic] = useState<Topic>(initialGameRef.current.topic);
+  const [rows, setRows] = useState(initialBoardRef.current.rows);
+  const [cols, setCols] = useState(initialBoardRef.current.cols);
+  const [rowLengths, setRowLengths] = useState(
+    initialBoardRef.current.rowLengths,
+  );
   const tilesRef = useRef(initialBoardRef.current.tiles);
   const boardRef = useRef<HTMLDivElement>(null);
   const hintTimerRef = useRef<number | null>(null);
@@ -263,6 +770,8 @@ export default function Home() {
   const [isDragging, setIsDragging] = useState(false);
   const [locked, setLocked] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [victoryOpen, setVictoryOpen] = useState(false);
+  const [dropCycle, setDropCycle] = useState(0);
   const [tileSize, setTileSize] = useState(BASE_TILE_SIZE);
   const [tileGap, setTileGap] = useState(BASE_TILE_GAP);
 
@@ -281,6 +790,8 @@ export default function Home() {
   useEffect(() => {
     if (remainingWords.length === 0) {
       setMessage("All words found! Shuffle for a new board.");
+      setVictoryOpen(true);
+      setSettingsOpen(false);
     }
   }, [remainingWords]);
 
@@ -310,7 +821,7 @@ export default function Home() {
       const padding = 48;
       const availableWidth = Math.max(280, window.innerWidth - padding);
       const desiredBoardWidth =
-        COLS * BASE_TILE_SIZE + (COLS - 1) * BASE_TILE_GAP;
+        cols * BASE_TILE_SIZE + (cols - 1) * BASE_TILE_GAP;
       const desiredShellWidth = desiredBoardWidth + 48;
       const scale = Math.min(1, availableWidth / desiredShellWidth);
       const minTile = 40;
@@ -321,7 +832,7 @@ export default function Home() {
     updateSizing();
     window.addEventListener("resize", updateSizing);
     return () => window.removeEventListener("resize", updateSizing);
-  }, []);
+  }, [cols]);
 
   const positions = useMemo(() => {
     const map: Record<string, { row: number; col: number }> = {};
@@ -433,12 +944,13 @@ export default function Home() {
 
       const removed = new Set(selection);
       window.setTimeout(() => {
-        setGrid((prev) => applyRemoval(prev, removed));
+        setGrid((prev) => applyRemoval(prev, removed, rows, cols, rowLengths));
+        setDropCycle((prev) => prev + 1);
         setClearing([]);
         setLocked(false);
       }, 350);
     },
-    [mode, remainingWords],
+    [mode, remainingWords, rows, cols, rowLengths],
   );
 
   const finishSelection = useCallback(() => {
@@ -512,8 +1024,11 @@ export default function Home() {
           [0, 1],
           [0, -1],
         ];
-        for (let row = 0; row < ROWS; row += 1) {
-          for (let col = 0; col < COLS; col += 1) {
+        for (let row = 0; row < rows; row += 1) {
+          for (let col = 0; col < cols; col += 1) {
+            if (!isValidCell(row, col, rowLengths)) {
+              continue;
+            }
             const startId = grid[row]?.[col];
             if (!startId) {
               continue;
@@ -526,9 +1041,9 @@ export default function Home() {
               const endCol = col + dc * (word.length - 1);
               if (
                 endRow < 0 ||
-                endRow >= ROWS ||
+                endRow >= rows ||
                 endCol < 0 ||
-                endCol >= COLS
+                endCol >= cols
               ) {
                 continue;
               }
@@ -538,7 +1053,7 @@ export default function Home() {
                 const nextRow = row + dr * i;
                 const nextCol = col + dc * i;
                 const id = grid[nextRow]?.[nextCol];
-                if (!id) {
+                if (!isValidCell(nextRow, nextCol, rowLengths) || !id) {
                   valid = false;
                   break;
                 }
@@ -567,7 +1082,7 @@ export default function Home() {
         path: string[],
       ): string[] | null => {
         const id = grid[row]?.[col];
-        if (!id) {
+        if (!isValidCell(row, col, rowLengths) || !id) {
           return null;
         }
         const letter = tilesRef.current[id]?.letter ?? "";
@@ -593,9 +1108,10 @@ export default function Home() {
           const nextCol = col + dc;
           if (
             nextRow >= 0 &&
-            nextRow < ROWS &&
+            nextRow < rows &&
             nextCol >= 0 &&
-            nextCol < COLS
+            nextCol < cols &&
+            isValidCell(nextRow, nextCol, rowLengths)
           ) {
             const result = dfs(nextRow, nextCol, index + 1, nextPath);
             if (result) {
@@ -608,8 +1124,11 @@ export default function Home() {
         return null;
       };
 
-      for (let row = 0; row < ROWS; row += 1) {
-        for (let col = 0; col < COLS; col += 1) {
+      for (let row = 0; row < rows; row += 1) {
+        for (let col = 0; col < cols; col += 1) {
+          if (!isValidCell(row, col, rowLengths)) {
+            continue;
+          }
           const result = dfs(row, col, 0, []);
           if (result) {
             return result;
@@ -618,23 +1137,36 @@ export default function Home() {
       }
       return null;
     },
-    [grid, mode],
+    [grid, mode, rows, cols, rowLengths],
   );
 
   const resetBoard = useCallback(
     (words: string[], nextMessage: string, modeOverride?: Mode) => {
-      const board = buildBoard(words, modeOverride ?? mode);
+      const nextMode = modeOverride ?? mode;
+      const layout = computeGridLayout(words, nextMode);
+      const board = buildBoard(
+        words,
+        nextMode,
+        layout.rows,
+        layout.cols,
+        layout.rowLengths,
+      );
       if (!board) {
-        setMessage("Couldn't place all words. Try fewer or shorter words.");
+        setMessage("Couldn't place all words. Try different words.");
         return false;
       }
       tilesRef.current = board.tiles;
       setGrid(board.grid);
+      setRows(board.rows);
+      setCols(board.cols);
+      setRowLengths(board.rowLengths);
       setSelected([]);
       setClearing([]);
       setHintPath([]);
       setLocked(false);
       setIsDragging(false);
+      setVictoryOpen(false);
+      setDropCycle((prev) => prev + 1);
       setMessage(nextMessage);
       return true;
     },
@@ -674,7 +1206,8 @@ export default function Home() {
       window.clearTimeout(hintTimerRef.current);
       hintTimerRef.current = null;
     }
-    const nextWords = remainingWords.length > 0 ? remainingWords : pickWords();
+    const nextWords =
+      remainingWords.length > 0 ? remainingWords : pickWords(topic.words);
     if (remainingWords.length === 0) {
       setWordList(nextWords);
       setRemainingWords(nextWords);
@@ -691,7 +1224,8 @@ export default function Home() {
       window.clearTimeout(hintTimerRef.current);
       hintTimerRef.current = null;
     }
-    const nextWords = remainingWords.length > 0 ? remainingWords : pickWords();
+    const nextWords =
+      remainingWords.length > 0 ? remainingWords : pickWords(topic.words);
     if (remainingWords.length === 0) {
       setWordList(nextWords);
       setRemainingWords(nextWords);
@@ -712,11 +1246,10 @@ export default function Home() {
   const parseWords = useCallback(
     (input: string) => {
       const tokens = input.toUpperCase().match(/[A-Z]+/g) ?? [];
-      const maxLen = mode === "line" ? Math.max(ROWS, COLS) : ROWS * COLS;
       const unique: string[] = [];
       const seen = new Set<string>();
       tokens.forEach((token) => {
-        if (token.length < 2 || token.length > maxLen) {
+        if (token.length < 2) {
           return;
         }
         if (!seen.has(token)) {
@@ -749,14 +1282,15 @@ export default function Home() {
     if (!success) {
       return;
     }
+    setTopic({ name: "Custom", words });
     setWordList(words);
     setRemainingWords(words);
     setEarned([]);
     setWordInput(words.join(", "));
   };
 
-  const boardWidth = COLS * tileSize + (COLS - 1) * tileGap;
-  const boardHeight = ROWS * tileSize + (ROWS - 1) * tileGap;
+  const boardWidth = cols * tileSize + (cols - 1) * tileGap;
+  const boardHeight = rows * tileSize + (rows - 1) * tileGap;
   const boardShellWidth = boardWidth + 48;
   const score = foundWords.length * 120;
 
@@ -779,11 +1313,20 @@ export default function Home() {
           </button>
 
           <div className="pointer-events-none absolute left-1/2 -translate-x-1/2 rounded-full bg-white/10 px-6 py-2 text-center text-xs font-semibold uppercase tracking-[0.4em] text-white/70 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.2)]">
-            Fruits
+            {topic.name}
           </div>
 
-          <div className="rounded-full bg-white/10 px-5 py-2 text-center text-xl font-semibold uppercase tracking-[0.25em] text-[#f7d35f] shadow-[inset_0_0_0_1px_rgba(255,255,255,0.2)]">
-            {score} pts
+          <div className="flex items-center gap-3">
+            <button
+              onClick={handleHint}
+              className="flex h-11 w-11 items-center justify-center rounded-2xl bg-white/10 text-lg shadow-[inset_0_0_0_1px_rgba(255,255,255,0.2)] transition hover:bg-white/20"
+              aria-label="Hint"
+            >
+              💡
+            </button>
+            <div className="rounded-full bg-white/10 px-5 py-2 text-center text-xl font-semibold uppercase tracking-[0.25em] text-[#f7d35f] shadow-[inset_0_0_0_1px_rgba(255,255,255,0.2)]">
+              {score} pts
+            </div>
           </div>
         </header>
 
@@ -807,25 +1350,39 @@ export default function Home() {
                   const isHinted = hintPath.includes(tile.id);
                   const x = tile.col * (tileSize + tileGap);
                   const y = tile.row * (tileSize + tileGap);
+                  const scale = isClearing ? 0.2 : isSelected ? 1.05 : 1;
+                  const rotate = isClearing ? -8 : 0;
+                  const dropDelay = `${(dropCycle % 10) * 0.001}s`;
+                  const tileStyle = {
+                    width: tileSize,
+                    height: tileSize,
+                    fontSize: Math.max(18, Math.round(tileSize * 0.45)),
+                    transform:
+                      "translate3d(var(--tile-x), var(--tile-y), 0) scale(var(--tile-scale)) rotate(var(--tile-rotate))",
+                    animation:
+                      dropCycle > 0
+                        ? "tile-drop 420ms cubic-bezier(0.2, 0.7, 0.2, 1)"
+                        : "none",
+                    animationDelay: dropCycle > 0 ? dropDelay : "0s",
+                    ["--tile-x" as const]: `${x}px`,
+                    ["--tile-y" as const]: `${y}px`,
+                    ["--tile-scale" as const]: `${scale}`,
+                    ["--tile-rotate" as const]: `${rotate}deg`,
+                  } as React.CSSProperties;
                   return (
                     <button
                       key={tile.id}
                       data-tile-id={tile.id}
                       onPointerDown={() => handlePointerDown(tile.id)}
                       onPointerEnter={() => extendSelection(tile.id)}
-                      className={`absolute flex touch-none select-none items-center justify-center rounded-2xl font-semibold shadow-[0_10px_18px_rgba(0,0,0,0.35)] transition-transform duration-300 ${
+                      className={`absolute flex touch-none select-none items-center justify-center rounded-2xl font-semibold shadow-[0_10px_18px_rgba(0,0,0,0.35)] transition-[transform,opacity,filter] duration-500 ease-[cubic-bezier(0.2,0.7,0.2,1)] ${
                         isClearing
-                          ? "scale-90 bg-[#f7d35f]/70 text-[#2a220f] opacity-40"
+                          ? "bg-[#f7d35f]/70 text-[#2a220f] opacity-0 blur-[1px]"
                           : isSelected
                             ? "bg-[#f7d35f] text-[#2a220f]"
                             : "bg-[#d7d3c8] text-[#1d1b15]"
                       } ${isHinted ? "ring-4 ring-[#74d3ff]" : ""}`}
-                      style={{
-                        width: tileSize,
-                        height: tileSize,
-                        fontSize: Math.max(18, Math.round(tileSize * 0.45)),
-                        transform: `translate3d(${x}px, ${y}px, 0)`,
-                      }}
+                      style={tileStyle}
                     >
                       {tile.letter}
                     </button>
@@ -843,13 +1400,13 @@ export default function Home() {
 
       {settingsOpen ? (
         <div className="fixed inset-0 z-30 flex items-start justify-center bg-[#08121f]/80 px-6 py-10 backdrop-blur">
-          <div className="w-full max-w-3xl rounded-[32px] border border-white/10 bg-[#0f2238]/95 p-6 shadow-[0_30px_60px_rgba(0,0,0,0.5)]">
+          <div className="w-full max-w-3xl rounded-4xl border border-white/10 bg-[#0f2238]/95 p-6 shadow-[0_30px_60px_rgba(0,0,0,0.5)]">
             <div className="flex flex-wrap items-center justify-between gap-4">
               <div>
                 <p className="text-xs uppercase tracking-[0.4em] text-white/60">
                   Settings
                 </p>
-                <p className="text-2xl font-[var(--font-display)] text-[#f7d35f]">
+                <p className="text-2xl font-(--font-display) text-[#f7d35f]">
                   Words Drop
                 </p>
               </div>
@@ -866,7 +1423,7 @@ export default function Home() {
                 <p className="text-xs uppercase tracking-[0.35em] text-white/60">
                   Target word
                 </p>
-                <p className="mt-2 text-3xl font-[var(--font-display)] text-white">
+                <p className="mt-2 text-3xl font-(--font-display) text-white">
                   {targetWord ?? "All found"}
                 </p>
                 <p className="mt-3 text-sm text-white/70">
@@ -919,14 +1476,14 @@ export default function Home() {
                 </div>
                 <p className="mt-3 text-xs uppercase tracking-[0.3em] text-white/50">
                   {mode === "line"
-                    ? `Max length ${Math.max(ROWS, COLS)} in row/col mode.`
-                    : "Paths can turn. Use short words for best fit."}
+                    ? "Longest word sets the grid width."
+                    : "Paths can turn. Grid scales to total letters."}
                 </p>
                 <div className="mt-4">
                   <p className="text-xs uppercase tracking-[0.35em] text-white/60">
                     Current word
                   </p>
-                  <p className="mt-2 text-2xl font-[var(--font-display)] text-[#f7d35f]">
+                  <p className="mt-2 text-2xl font-(--font-display) text-[#f7d35f]">
                     {selectedWord || "—"}
                   </p>
                 </div>
@@ -1002,6 +1559,36 @@ export default function Home() {
                   )}
                 </div>
               </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {victoryOpen ? (
+        <div className="fixed inset-0 z-40 flex items-center justify-center bg-[#08121f]/85 px-6 backdrop-blur">
+          <div className="w-full max-w-md rounded-[28px] border border-white/10 bg-[#0f2238]/95 p-6 text-center shadow-[0_30px_60px_rgba(0,0,0,0.55)]">
+            <p className="text-xs uppercase tracking-[0.4em] text-white/60">
+              Victory
+            </p>
+            <p className="mt-2 text-3xl font-(--font-display) text-[#f7d35f]">
+              All words found
+            </p>
+            <p className="mt-3 text-sm text-white/70">
+              Score: {score}. Shuffle to play a fresh set.
+            </p>
+            <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
+              <button
+                onClick={handleShuffle}
+                className="rounded-full bg-[#f7d35f] px-5 py-2 text-xs font-semibold uppercase tracking-[0.3em] text-[#2a220f] transition hover:brightness-95"
+              >
+                Play again
+              </button>
+              <button
+                onClick={() => setVictoryOpen(false)}
+                className="rounded-full bg-white/10 px-4 py-2 text-xs font-semibold uppercase tracking-[0.3em] text-white/70 transition hover:bg-white/20"
+              >
+                Keep board
+              </button>
             </div>
           </div>
         </div>
