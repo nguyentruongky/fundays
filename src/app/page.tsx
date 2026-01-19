@@ -1,6 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import type { PointerEvent } from "react";
 
 type Cell = string | null;
@@ -461,11 +468,11 @@ const computeGridLayout = (words: string[], mode: Mode) => {
   const rows = Math.ceil(totalLetters / cols);
   const rowLengths = Array.from({ length: rows }, () => cols);
   let extra = rows * cols - totalLetters;
-  let rowIndex = rows - 1;
+  let rowIndex = 0;
   while (extra > 0) {
     rowLengths[rowIndex] -= 1;
     extra -= 1;
-    rowIndex = rowIndex === 0 ? rows - 1 : rowIndex - 1;
+    rowIndex = rowIndex === rows - 1 ? 0 : rowIndex + 1;
   }
   return { rows, cols, rowLengths };
 };
@@ -693,26 +700,15 @@ const normalizeGrid = (
     validRowsByCol.push(validRows);
   }
 
-  const isRectangular = rowLengths.every((len) => len === cols);
-  const orderedColumns = isRectangular
-    ? (() => {
-        const nonEmpty = columns.filter((column) => column.length > 0);
-        const emptyCount = cols - nonEmpty.length;
-        const leftPadding = Math.floor(emptyCount / 2);
-        const rightPadding = emptyCount - leftPadding;
-        return [
-          ...Array.from({ length: leftPadding }, () => [] as string[]),
-          ...nonEmpty,
-          ...Array.from({ length: rightPadding }, () => [] as string[]),
-        ];
-      })()
-    : columns;
+  const orderedColumnsWithRows = columns.map((column, index) => ({
+    column,
+    validRows: validRowsByCol[index] ?? [],
+  }));
 
   const nextGrid: Cell[][] = Array.from({ length: rows }, () =>
     Array.from({ length: cols }, () => null),
   );
-  orderedColumns.forEach((column, col) => {
-    const validRows = validRowsByCol[col] ?? [];
+  orderedColumnsWithRows.forEach(({ column, validRows }, col) => {
     column.forEach((id, index) => {
       const row = validRows[index];
       if (row !== undefined) {
@@ -771,13 +767,18 @@ export default function Home() {
   const [locked, setLocked] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [victoryOpen, setVictoryOpen] = useState(false);
-  const [dropCycle, setDropCycle] = useState(0);
   const [tileSize, setTileSize] = useState(BASE_TILE_SIZE);
   const [tileGap, setTileGap] = useState(BASE_TILE_GAP);
+  const [tileOffsets, setTileOffsets] = useState<
+    Record<string, { x: number; y: number }>
+  >({});
 
   const selectedRef = useRef(selected);
   const lockedRef = useRef(locked);
   const targetWord = remainingWords[0] ?? null;
+  const prevPositionsRef = useRef<Record<string, { row: number; col: number }>>(
+    {},
+  );
 
   useEffect(() => {
     selectedRef.current = selected;
@@ -850,6 +851,31 @@ export default function Home() {
   useEffect(() => {
     positionsRef.current = positions;
   }, [positions]);
+
+  useLayoutEffect(() => {
+    const prev = prevPositionsRef.current;
+    const nextOffsets: Record<string, { x: number; y: number }> = {};
+    Object.entries(positions).forEach(([id, pos]) => {
+      const prevPos = prev[id];
+      if (!prevPos) {
+        return;
+      }
+      const dy = (prevPos.row - pos.row) * (tileSize + tileGap);
+      if (dy !== 0) {
+        nextOffsets[id] = { x: 0, y: dy };
+      }
+    });
+    prevPositionsRef.current = positions;
+    if (Object.keys(nextOffsets).length === 0) {
+      setTileOffsets({});
+      return;
+    }
+    setTileOffsets(nextOffsets);
+    const animationFrame = window.requestAnimationFrame(() => {
+      setTileOffsets({});
+    });
+    return () => window.cancelAnimationFrame(animationFrame);
+  }, [positions, tileGap, tileSize]);
 
   const tilesInPlay = useMemo(() => {
     const items: Array<{
@@ -945,7 +971,6 @@ export default function Home() {
       const removed = new Set(selection);
       window.setTimeout(() => {
         setGrid((prev) => applyRemoval(prev, removed, rows, cols, rowLengths));
-        setDropCycle((prev) => prev + 1);
         setClearing([]);
         setLocked(false);
       }, 350);
@@ -1166,7 +1191,6 @@ export default function Home() {
       setLocked(false);
       setIsDragging(false);
       setVictoryOpen(false);
-      setDropCycle((prev) => prev + 1);
       setMessage(nextMessage);
       return true;
     },
@@ -1352,20 +1376,17 @@ export default function Home() {
                   const y = tile.row * (tileSize + tileGap);
                   const scale = isClearing ? 0.2 : isSelected ? 1.05 : 1;
                   const rotate = isClearing ? -8 : 0;
-                  const dropDelay = `${(dropCycle % 10) * 0.001}s`;
+                  const offset = tileOffsets[tile.id] ?? { x: 0, y: 0 };
                   const tileStyle = {
                     width: tileSize,
                     height: tileSize,
                     fontSize: Math.max(18, Math.round(tileSize * 0.45)),
                     transform:
-                      "translate3d(var(--tile-x), var(--tile-y), 0) scale(var(--tile-scale)) rotate(var(--tile-rotate))",
-                    animation:
-                      dropCycle > 0
-                        ? "tile-drop 420ms cubic-bezier(0.2, 0.7, 0.2, 1)"
-                        : "none",
-                    animationDelay: dropCycle > 0 ? dropDelay : "0s",
+                      "translate3d(calc(var(--tile-x) + var(--tile-offset-x)), calc(var(--tile-y) + var(--tile-offset-y)), 0) scale(var(--tile-scale)) rotate(var(--tile-rotate))",
                     ["--tile-x" as const]: `${x}px`,
                     ["--tile-y" as const]: `${y}px`,
+                    ["--tile-offset-x" as const]: `${offset.x}px`,
+                    ["--tile-offset-y" as const]: `${offset.y}px`,
                     ["--tile-scale" as const]: `${scale}`,
                     ["--tile-rotate" as const]: `${rotate}deg`,
                   } as React.CSSProperties;
@@ -1429,7 +1450,7 @@ export default function Home() {
                 <p className="mt-3 text-sm text-white/70">
                   {message}{" "}
                   {targetWord
-                    ? `Make ${targetWord} to clear tiles, drop the stack, and pull columns inward.`
+                    ? `Make ${targetWord} to clear tiles and drop the stack.`
                     : "Shuffle for a new set of hidden words."}
                 </p>
                 <div className="mt-4 flex flex-wrap gap-2">
