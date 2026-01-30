@@ -18,6 +18,7 @@ type Topic = { name: string; words: string[] };
 const BASE_TILE_SIZE = 76;
 const BASE_TILE_GAP = 12;
 const WORD_COUNT = 10;
+const ACTIVE_WORD_LIMIT = 2;
 
 const TOPIC_LIBRARY: Topic[] = [
   {
@@ -455,6 +456,28 @@ const pickWords = (words: string[]) => {
   return shuffleArray(words).slice(0, WORD_COUNT);
 };
 
+const scrambleWord = (word: string) => {
+  if (word.length <= 2) {
+    return word.split("").reverse().join("");
+  }
+  const letters = word.split("");
+  const left = 1;
+  const right = word.length - 2;
+  if (right > left) {
+    [letters[left], letters[right]] = [letters[right], letters[left]];
+  } else {
+    [letters[0], letters[word.length - 1]] = [
+      letters[word.length - 1],
+      letters[0],
+    ];
+  }
+  const scrambled = letters.join("");
+  if (scrambled === word) {
+    return letters.slice(1).concat(letters[0]).join("");
+  }
+  return scrambled;
+};
+
 const computeGridLayout = (words: string[], mode: Mode) => {
   const totalLetters = words.reduce((sum, word) => sum + word.length, 0);
   const maxWordLength = words.reduce(
@@ -467,13 +490,6 @@ const computeGridLayout = (words: string[], mode: Mode) => {
   }
   const rows = Math.ceil(totalLetters / cols);
   const rowLengths = Array.from({ length: rows }, () => cols);
-  let extra = rows * cols - totalLetters;
-  let rowIndex = 0;
-  while (extra > 0) {
-    rowLengths[rowIndex] -= 1;
-    extra -= 1;
-    rowIndex = rowIndex === rows - 1 ? 0 : rowIndex + 1;
-  }
   return { rows, cols, rowLengths };
 };
 
@@ -481,15 +497,15 @@ const createLetterGrid = (rows: number, cols: number): (string | null)[][] =>
   Array.from({ length: rows }, () => Array.from({ length: cols }, () => null));
 
 const createInitialGame = () => {
-  let attempts = 0;
   const topicPool = TOPIC_LIBRARY;
-  while (attempts < 12) {
+  const mode: Mode = "line";
+  for (let attempts = 0; attempts < 12; attempts += 1) {
     const topic = topicPool[Math.floor(Math.random() * topicPool.length)];
     const words = pickWords(topic.words);
-    const layout = computeGridLayout(words, "path");
+    const layout = computeGridLayout(words, mode);
     const board = buildBoard(
       words,
-      "path",
+      mode,
       layout.rows,
       layout.cols,
       layout.rowLengths,
@@ -497,19 +513,25 @@ const createInitialGame = () => {
     if (board) {
       return { topic, words, board };
     }
-    attempts += 1;
   }
   const fallbackTopic = topicPool[0];
   const fallbackWords = pickWords(fallbackTopic.words);
-  const fallbackLayout = computeGridLayout(fallbackWords, "path");
+  const fallbackLayout = computeGridLayout(fallbackWords, mode);
   const fallbackBoard = buildBoard(
     fallbackWords,
-    "path",
+    mode,
     fallbackLayout.rows,
     fallbackLayout.cols,
     fallbackLayout.rowLengths,
   );
-  return { topic: fallbackTopic, words: fallbackWords, board: fallbackBoard! };
+  if (fallbackBoard) {
+    return { topic: fallbackTopic, words: fallbackWords, board: fallbackBoard };
+  }
+  return {
+    topic: fallbackTopic,
+    words: fallbackWords,
+    board: buildLinearBoard(fallbackWords),
+  };
 };
 
 const isValidCell = (
@@ -670,9 +692,36 @@ const buildBoard = (
         return id;
       }),
     );
-    return { grid: idGrid, tiles, rows, cols, rowLengths };
+    const normalizedGrid = normalizeGrid(idGrid, rows, cols, rowLengths);
+    return { grid: normalizedGrid, tiles, rows, cols, rowLengths };
   }
   return null;
+};
+
+const buildLinearBoard = (words: string[]) => {
+  const rows = Math.max(words.length, 1);
+  const cols =
+    Math.max(
+      words.reduce((max, word) => Math.max(max, word.length), 0),
+      1,
+    );
+  const rowLengths = Array.from({ length: rows }, (_, rowIndex) =>
+    words[rowIndex]?.length ?? 0,
+  );
+  const tiles: Record<string, Tile> = {};
+  let idCounter = 0;
+  const grid = Array.from({ length: rows }, (_, rowIndex) =>
+    Array.from({ length: cols }, (_, colIndex) => {
+      const letters = words[rowIndex] ?? "";
+      if (colIndex >= letters.length) {
+        return null;
+      }
+      const id = `tile-${idCounter++}`;
+      tiles[id] = { id, letter: letters[colIndex] };
+      return id;
+    }),
+  );
+  return { grid, tiles, rows, cols, rowLengths };
 };
 
 const normalizeGrid = (
@@ -734,27 +783,28 @@ const applyRemoval = (
 };
 
 export default function Home() {
-  const [mode, setMode] = useState<Mode>("path");
-  const initialGameRef = useRef(createInitialGame());
-  const initialWordsRef = useRef(initialGameRef.current.words);
-  const initialBoardRef = useRef(initialGameRef.current.board);
-  const [topic, setTopic] = useState<Topic>(initialGameRef.current.topic);
-  const [rows, setRows] = useState(initialBoardRef.current.rows);
-  const [cols, setCols] = useState(initialBoardRef.current.cols);
-  const [rowLengths, setRowLengths] = useState(
-    initialBoardRef.current.rowLengths,
-  );
-  const tilesRef = useRef(initialBoardRef.current.tiles);
+  const [mode, setMode] = useState<Mode>("line");
+  const initialGame = useMemo(() => createInitialGame(), []);
+  const initialWords = initialGame.words;
+  const initialBoard = initialGame.board;
+  const initialTopic = initialGame.topic;
+  const [topic, setTopic] = useState<Topic>(initialTopic);
+  const [rows, setRows] = useState(initialBoard.rows);
+  const [cols, setCols] = useState(initialBoard.cols);
+  const [rowLengths, setRowLengths] = useState(initialBoard.rowLengths);
+  const [tiles, setTiles] = useState<Record<string, Tile>>(initialBoard.tiles);
   const boardRef = useRef<HTMLDivElement>(null);
   const hintTimerRef = useRef<number | null>(null);
-  const [wordInput, setWordInput] = useState(
-    initialWordsRef.current.join(", "),
-  );
+  const autoShuffleTimerRef = useRef<number | null>(null);
+  const pendingAutoShuffleRef = useRef(false);
+  const [wordInput, setWordInput] = useState(initialWords.join(", "));
+  const needsNormalizationRef = useRef(true);
 
-  const [grid, setGrid] = useState<Cell[][]>(initialBoardRef.current.grid);
-  const [wordList, setWordList] = useState<string[]>(initialWordsRef.current);
-  const [remainingWords, setRemainingWords] = useState<string[]>(
-    initialWordsRef.current,
+  const [grid, setGrid] = useState<Cell[][]>(initialBoard.grid);
+  const [wordList, setWordList] = useState<string[]>(initialWords);
+  const [remainingWords, setRemainingWords] = useState<string[]>(initialWords);
+  const [activeCount, setActiveCount] = useState(
+    Math.min(1, initialWords.length),
   );
   const [selected, setSelected] = useState<string[]>([]);
   const [clearing, setClearing] = useState<string[]>([]);
@@ -789,17 +839,12 @@ export default function Home() {
   }, [locked]);
 
   useEffect(() => {
-    if (remainingWords.length === 0) {
-      setMessage("All words found! Shuffle for a new board.");
-      setVictoryOpen(true);
-      setSettingsOpen(false);
-    }
-  }, [remainingWords]);
-
-  useEffect(() => {
     return () => {
       if (hintTimerRef.current) {
         window.clearTimeout(hintTimerRef.current);
+      }
+      if (autoShuffleTimerRef.current) {
+        window.clearTimeout(autoShuffleTimerRef.current);
       }
     };
   }, []);
@@ -852,6 +897,32 @@ export default function Home() {
     positionsRef.current = positions;
   }, [positions]);
 
+  const columnLayout = useMemo(() => {
+    const seen = new Set<number>();
+    const columns: number[] = [];
+    grid.forEach((row) => {
+      row.forEach((id, colIndex) => {
+        if (id && !seen.has(colIndex)) {
+          seen.add(colIndex);
+          columns.push(colIndex);
+        }
+      });
+    });
+    if (columns.length === 0) {
+      return { map: {}, count: 1 };
+    }
+    columns.sort((a, b) => a - b);
+    const map: Record<number, number> = {};
+    columns.forEach((column, index) => {
+      map[column] = index;
+    });
+    return { map, count: Math.max(columns.length, 1) };
+  }, [grid]);
+
+  const columnMap = columnLayout.map;
+  const displayCols = columnLayout.count;
+
+  /* eslint-disable react-hooks/set-state-in-effect */
   useLayoutEffect(() => {
     const prev = prevPositionsRef.current;
     const nextOffsets: Record<string, { x: number; y: number }> = {};
@@ -877,6 +948,15 @@ export default function Home() {
     return () => window.cancelAnimationFrame(animationFrame);
   }, [positions, tileGap, tileSize]);
 
+  useEffect(() => {
+    if (!needsNormalizationRef.current) {
+      return;
+    }
+    setGrid((prev) => normalizeGrid(prev, rows, cols, rowLengths));
+    needsNormalizationRef.current = false;
+  }, [grid, rows, cols, rowLengths]);
+  /* eslint-enable react-hooks/set-state-in-effect */
+
   const tilesInPlay = useMemo(() => {
     const items: Array<{
       id: string;
@@ -891,13 +971,18 @@ export default function Home() {
             id,
             row: rowIndex,
             col: colIndex,
-            letter: tilesRef.current[id]?.letter ?? "",
+            letter: tiles[id]?.letter ?? "",
           });
         }
       });
     });
     return items;
-  }, [grid]);
+  }, [grid, tiles]);
+
+  const activeWords = useMemo(
+    () => remainingWords.slice(0, activeCount),
+    [activeCount, remainingWords],
+  );
 
   const extendSelection = useCallback(
     (id: string) => {
@@ -967,6 +1052,15 @@ export default function Home() {
       });
       const nextRemaining = remainingWords.filter((entry) => entry !== word);
       setRemainingWords(nextRemaining);
+      setActiveCount((prev) => {
+        if (nextRemaining.length === 0) {
+          return 0;
+        }
+        if (prev >= ACTIVE_WORD_LIMIT) {
+          return Math.min(prev, nextRemaining.length);
+        }
+        return Math.min(prev + 1, ACTIVE_WORD_LIMIT, nextRemaining.length);
+      });
 
       const removed = new Set(selection);
       window.setTimeout(() => {
@@ -986,15 +1080,19 @@ export default function Home() {
     setIsDragging(false);
     setSelected([]);
     setHintPath([]);
-    const word = selection
-      .map((id) => tilesRef.current[id]?.letter ?? "")
-      .join("");
-    if (remainingWords.includes(word)) {
-      clearWord(selection, word);
+    const word = selection.map((id) => tiles[id]?.letter ?? "").join("");
+    const reversedWord = word.split("").reverse().join("");
+    const matchedWord = remainingWords.includes(word)
+      ? word
+      : remainingWords.includes(reversedWord)
+        ? reversedWord
+        : null;
+    if (matchedWord) {
+      clearWord(selection, matchedWord);
     } else if (word.length > 0) {
       setMessage("That word isn't hidden here.");
     }
-  }, [clearWord, isDragging, remainingWords]);
+  }, [clearWord, isDragging, remainingWords, tiles]);
 
   useEffect(() => {
     const handlePointerUp = () => finishSelection();
@@ -1031,9 +1129,15 @@ export default function Home() {
     }
   };
 
-  const selectedWord = selected
-    .map((id) => tilesRef.current[id]?.letter ?? "")
-    .join("");
+  const selectedWord = selected.map((id) => tiles[id]?.letter ?? "").join("");
+
+  const scrambledWords = useMemo(() => {
+    const map: Record<string, string> = {};
+    wordList.forEach((word) => {
+      map[word] = scrambleWord(word);
+    });
+    return map;
+  }, [wordList]);
 
   const foundWords = useMemo(
     () => wordList.filter((word) => !remainingWords.includes(word)),
@@ -1058,7 +1162,7 @@ export default function Home() {
             if (!startId) {
               continue;
             }
-            if ((tilesRef.current[startId]?.letter ?? "") !== word[0]) {
+            if ((tiles[startId]?.letter ?? "") !== word[0]) {
               continue;
             }
             for (const [dr, dc] of directions) {
@@ -1082,7 +1186,7 @@ export default function Home() {
                   valid = false;
                   break;
                 }
-                const letter = tilesRef.current[id]?.letter ?? "";
+                const letter = tiles[id]?.letter ?? "";
                 if (letter !== word[i]) {
                   valid = false;
                   break;
@@ -1110,7 +1214,7 @@ export default function Home() {
         if (!isValidCell(row, col, rowLengths) || !id) {
           return null;
         }
-        const letter = tilesRef.current[id]?.letter ?? "";
+              const letter = tiles[id]?.letter ?? "";
         if (letter !== word[index]) {
           return null;
         }
@@ -1162,7 +1266,7 @@ export default function Home() {
       }
       return null;
     },
-    [grid, mode, rows, cols, rowLengths],
+    [grid, mode, rows, cols, rowLengths, tiles],
   );
 
   const resetBoard = useCallback(
@@ -1180,7 +1284,7 @@ export default function Home() {
         setMessage("Couldn't place all words. Try different words.");
         return false;
       }
-      tilesRef.current = board.tiles;
+      setTiles(board.tiles);
       setGrid(board.grid);
       setRows(board.rows);
       setCols(board.cols);
@@ -1192,6 +1296,7 @@ export default function Home() {
       setIsDragging(false);
       setVictoryOpen(false);
       setMessage(nextMessage);
+      needsNormalizationRef.current = true;
       return true;
     },
     [mode],
@@ -1230,15 +1335,63 @@ export default function Home() {
       window.clearTimeout(hintTimerRef.current);
       hintTimerRef.current = null;
     }
+    if (autoShuffleTimerRef.current) {
+      window.clearTimeout(autoShuffleTimerRef.current);
+      autoShuffleTimerRef.current = null;
+    }
+    pendingAutoShuffleRef.current = false;
     const nextWords =
       remainingWords.length > 0 ? remainingWords : pickWords(topic.words);
     if (remainingWords.length === 0) {
       setWordList(nextWords);
       setRemainingWords(nextWords);
+      setActiveCount(Math.min(1, nextWords.length));
       setEarned([]);
     }
     resetBoard(nextWords, "Shuffled! Words rehung in the grid.");
   };
+
+  /* eslint-disable react-hooks/set-state-in-effect */
+  useEffect(() => {
+    if (remainingWords.length > 0) {
+      pendingAutoShuffleRef.current = false;
+      return;
+    }
+    setMessage("All words found! Shuffle for a new board.");
+    setVictoryOpen(true);
+    setSettingsOpen(false);
+    if (lockedRef.current) {
+      pendingAutoShuffleRef.current = true;
+      return;
+    }
+    if (autoShuffleTimerRef.current) {
+      window.clearTimeout(autoShuffleTimerRef.current);
+    }
+    autoShuffleTimerRef.current = window.setTimeout(() => {
+      handleShuffle();
+    }, 900);
+  }, [handleShuffle, remainingWords]);
+  /* eslint-enable react-hooks/set-state-in-effect */
+
+  useEffect(() => {
+    if (!pendingAutoShuffleRef.current) {
+      return;
+    }
+    if (locked) {
+      return;
+    }
+    if (remainingWords.length > 0) {
+      pendingAutoShuffleRef.current = false;
+      return;
+    }
+    pendingAutoShuffleRef.current = false;
+    if (autoShuffleTimerRef.current) {
+      window.clearTimeout(autoShuffleTimerRef.current);
+    }
+    autoShuffleTimerRef.current = window.setTimeout(() => {
+      handleShuffle();
+    }, 900);
+  }, [handleShuffle, locked, remainingWords]);
 
   const handleModeChange = (nextMode: Mode) => {
     if (mode === nextMode || lockedRef.current) {
@@ -1253,6 +1406,7 @@ export default function Home() {
     if (remainingWords.length === 0) {
       setWordList(nextWords);
       setRemainingWords(nextWords);
+      setActiveCount(Math.min(1, nextWords.length));
       setEarned([]);
     }
     const success = resetBoard(
@@ -1309,11 +1463,13 @@ export default function Home() {
     setTopic({ name: "Custom", words });
     setWordList(words);
     setRemainingWords(words);
+    setActiveCount(Math.min(1, words.length));
     setEarned([]);
     setWordInput(words.join(", "));
   };
 
-  const boardWidth = cols * tileSize + (cols - 1) * tileGap;
+  const boardWidth =
+    displayCols * tileSize + Math.max(displayCols - 1, 0) * tileGap;
   const boardHeight = rows * tileSize + (rows - 1) * tileGap;
   const boardShellWidth = boardWidth + 48;
   const score = foundWords.length * 120;
@@ -1372,7 +1528,8 @@ export default function Home() {
                   const isSelected = selected.includes(tile.id);
                   const isClearing = clearing.includes(tile.id);
                   const isHinted = hintPath.includes(tile.id);
-                  const x = tile.col * (tileSize + tileGap);
+                  const columnIndex = columnMap[tile.col] ?? 0;
+                  const x = columnIndex * (tileSize + tileGap);
                   const y = tile.row * (tileSize + tileGap);
                   const scale = isClearing ? 0.2 : isSelected ? 1.05 : 1;
                   const rotate = isClearing ? -8 : 0;
@@ -1416,6 +1573,7 @@ export default function Home() {
           <p className="mt-6 text-xs uppercase tracking-[0.4em] text-white/45">
             Drag to select. Release to drop.
           </p>
+          <p className="mt-2 text-sm text-center text-white/70">{message}</p>
         </main>
       </div>
 
@@ -1544,16 +1702,21 @@ export default function Home() {
                   ) : (
                     wordList.map((word) => {
                       const found = foundWords.includes(word);
+                      const isActive = activeWords.includes(word);
+                      const displayWord =
+                        found || isActive ? word : scrambledWords[word] ?? word;
                       return (
                         <span
                           key={word}
                           className={`rounded-full px-3 py-1 text-sm font-semibold tracking-[0.2em] ${
                             found
                               ? "bg-white/10 text-white/40 line-through"
-                              : "bg-white/20 text-white/80"
+                              : isActive
+                                ? "bg-[#74d3ff]/20 text-[#bfeaff]"
+                                : "bg-white/10 text-white/50"
                           }`}
                         >
-                          {word}
+                          {displayWord}
                         </span>
                       );
                     })
