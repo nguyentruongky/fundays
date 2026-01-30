@@ -1450,8 +1450,8 @@ export default function Home() {
       <div className="absolute -bottom-20 right-6 h-72 w-72 rounded-full bg-[#0f2442] blur-3xl" />
       <div className="absolute right-1/3 top-16 h-24 w-24 rounded-3xl bg-[#f7d35f]/20 blur-2xl" />
 
-      <div className="relative z-10 mx-auto flex min-h-screen max-w-4xl flex-col px-6 py-8">
-        <header className="relative flex items-center justify-between">
+      <div className="relative z-10 mx-auto flex min-h-screen max-w-4xl flex-col gap-6 px-4 py-8 sm:px-6">
+        <header className="relative flex items-center gap-4">
           <button
             onClick={() => setSettingsOpen(true)}
             className="flex h-11 w-11 items-center justify-center rounded-2xl bg-white/10 text-xl shadow-[inset_0_0_0_1px_rgba(255,255,255,0.2)] transition hover:bg-white/20"
@@ -1464,27 +1464,30 @@ export default function Home() {
             {topic.name}
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="ml-auto flex items-center gap-3">
             <button
               onClick={handleHint}
-              className="flex h-11 w-11 items-center justify-center rounded-2xl bg-white/10 text-lg shadow-[inset_0_0_0_1px_rgba(255,255,255,0.2)] transition hover:bg-white/20"
+              className="hidden h-11 w-11 items-center justify-center rounded-2xl bg-white/10 text-lg shadow-[inset_0_0_0_1px_rgba(255,255,255,0.2)] transition hover:bg-white/20 sm:flex"
               aria-label="Hint"
             >
               💡
             </button>
-            <div className="rounded-full bg-white/10 px-5 py-2 text-center text-xl font-semibold uppercase tracking-[0.25em] text-[#f7d35f] shadow-[inset_0_0_0_1px_rgba(255,255,255,0.2)]">
+            <div className="rounded-full bg-white/10 px-4 py-1 text-center text-base font-semibold uppercase tracking-[0.2em] text-[#f7d35f] shadow-[inset_0_0_0_1px_rgba(255,255,255,0.2)] sm:px-5 sm:py-2 sm:text-xl sm:tracking-[0.25em]">
               {score} pts
             </div>
           </div>
         </header>
 
-        <main className="flex flex-1 flex-col items-center justify-center py-10">
-          <div className="mb-4 text-center text-2xl font-semibold uppercase tracking-[0.35em] text-white">
+        <main className="flex flex-1 flex-col items-center justify-center gap-6 py-10">
+          <div className="mb-4 text-center text-2xl font-semibold uppercase tracking-[0.35em] text-white md:text-3xl">
             {selectedWord || "—"}
           </div>
           <div
             className="relative w-full max-w-full"
-            style={{ width: boardShellWidth }}
+            style={{
+              width: boardShellWidth,
+              maxWidth: "clamp(280px, 100%, 720px)",
+            }}
           >
             <div
               ref={boardRef}
@@ -1540,13 +1543,16 @@ export default function Home() {
               </div>
             </div>
           </div>
-
-          <p className="mt-6 text-xs uppercase tracking-[0.4em] text-white/45">
-            Drag to select. Release to drop.
-          </p>
-          <p className="mt-2 text-sm text-center text-white/70">{message}</p>
         </main>
       </div>
+
+      <button
+        onClick={handleHint}
+        className="fixed bottom-6 right-6 z-20 flex h-14 w-14 items-center justify-center rounded-full bg-white/10 text-2xl shadow-[0_10px_20px_rgba(0,0,0,0.45)] transition hover:bg-white/20 sm:hidden"
+        aria-label="Hint"
+      >
+        💡
+      </button>
 
       {settingsOpen ? (
         <div className="fixed inset-0 z-30 flex items-start justify-center bg-[#08121f]/80 px-6 py-10 backdrop-blur">
