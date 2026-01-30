@@ -1452,7 +1452,7 @@ export default function Home() {
       <div className="absolute -bottom-20 right-6 h-72 w-72 rounded-full bg-[#0f2442] blur-3xl" />
       <div className="absolute right-1/3 top-16 h-24 w-24 rounded-3xl bg-[#f7d35f]/20 blur-2xl" />
 
-      <div className="relative z-10 mx-auto flex min-h-screen max-w-4xl flex-col gap-6 px-4 py-8 sm:px-6">
+      <div className="relative z-10 mx-auto flex min-h-screen max-w-3xl flex-col gap-6 py-8 px-6">
         <header className="relative flex items-center gap-4">
           <button
             onClick={() => setSettingsOpen(true)}
@@ -1491,15 +1491,15 @@ export default function Home() {
               maxWidth: "clamp(280px, 100%, 720px)",
             }}
           >
+          <div
+            ref={boardRef}
+            onPointerMove={handleBoardPointerMove}
+            className="relative touch-none rounded-[34px] bg-white/5 p-6 shadow-[0_24px_40px_rgba(0,0,0,0.4)] ring-1 ring-white/20"
+          >
             <div
-              ref={boardRef}
-              onPointerMove={handleBoardPointerMove}
-              className="relative touch-none rounded-[34px] bg-white/5 p-6 shadow-[0_24px_40px_rgba(0,0,0,0.4)] ring-1 ring-white/20"
+              className="relative mx-auto"
+              style={{ width: boardWidth, height: boardHeight }}
             >
-              <div
-                className="relative"
-                style={{ width: boardWidth, height: boardHeight }}
-              >
                 {tilesInPlay.map((tile) => {
                   const isSelected = selected.includes(tile.id);
                   const isClearing = clearing.includes(tile.id);
@@ -1581,7 +1581,7 @@ export default function Home() {
           onClick={() => setSettingsOpen(false)}
         >
           <div
-            className="w-full max-w-3xl rounded-4xl border border-white/10 bg-[#0f2238]/95 p-6 shadow-[0_30px_60px_rgba(0,0,0,0.5)]"
+            className="w-full max-w-lg self-center rounded-4xl border border-white/10 bg-[#0f2238]/95 p-6 shadow-[0_30px_60px_rgba(0,0,0,0.5)]"
             onClick={(event) => event.stopPropagation()}
           >
             <div className="flex flex-wrap items-center justify-between gap-4">
