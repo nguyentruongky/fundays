@@ -785,6 +785,7 @@ export default function Home() {
   const toastTimerRef = useRef<number | null>(null);
   const [wordInput, setWordInput] = useState(initialWords.join(", "));
   const needsNormalizationRef = useRef(true);
+  const [viewportWidth, setViewportWidth] = useState(0);
 
   const [grid, setGrid] = useState<Cell[][]>(initialBoard.grid);
   const [wordList, setWordList] = useState<string[]>(initialWords);
@@ -796,7 +797,7 @@ export default function Home() {
   const [clearing, setClearing] = useState<string[]>([]);
   const [hintPath, setHintPath] = useState<string[]>([]);
   const [, setEarned] = useState<string[]>([]);
-  const [message, setMessage] = useState(
+  const [, setMessage] = useState(
     "Swipe across adjacent tiles to earn the word.",
   );
   const [toastMessage, setToastMessage] = useState<string | null>(null);
@@ -852,6 +853,7 @@ export default function Home() {
 
   useEffect(() => {
     const updateSizing = () => {
+      setViewportWidth(window.innerWidth);
       const clampedShellWidth = Math.min(
         BOARD_SHELL_MAX_WIDTH,
         Math.max(
@@ -1456,10 +1458,32 @@ export default function Home() {
   };
 
   const boardWidth = cols * tileSize + (cols - 1) * tileGap;
-  const boardHeight = rows * tileSize + (rows - 1) * tileGap;
-  const boardShellWidth = boardWidth + 48;
+  const boardShellWidth = boardWidth + SHELL_PADDING;
+  const availableViewportWidth =
+    viewportWidth > SCREEN_HORIZONTAL_PADDING
+      ? viewportWidth - SCREEN_HORIZONTAL_PADDING
+      : BOARD_SHELL_MAX_WIDTH;
+  const boardContainerWidth = Math.max(
+    BOARD_SHELL_MIN_WIDTH,
+    Math.min(boardShellWidth, BOARD_SHELL_MAX_WIDTH, availableViewportWidth),
+  );
+  const renderScale =
+    boardShellWidth > 0
+      ? Math.min(1, boardContainerWidth / boardShellWidth)
+      : 1;
+  const renderedTileSize = tileSize * renderScale;
+  const renderedTileGap = tileGap * renderScale;
+  const renderedBoardWidth =
+    cols * renderedTileSize + (cols - 1) * renderedTileGap;
+  const renderedBoardHeight =
+    rows * renderedTileSize + (rows - 1) * renderedTileGap;
+  const renderedHorizontalOffset =
+    ((cols - displayCols) / 2) * (renderedTileSize + renderedTileGap);
+  const tileRadius = Math.min(
+    renderedTileSize / 4,
+    Math.max(6, Math.round(renderedTileSize * 0.2)),
+  );
   const score = foundWords.length * 120;
-  const horizontalOffset = ((cols - displayCols) / 2) * (tileSize + tileGap);
 
   return (
     <div className="relative h-screen overflow-hidden bg-[#0b1726] text-slate-100">
@@ -1470,7 +1494,7 @@ export default function Home() {
       <div className="absolute right-1/3 top-16 h-24 w-24 rounded-3xl bg-[#f7d35f]/20 blur-2xl" />
 
       <div className="relative z-10 mx-auto flex min-h-screen max-w-3xl flex-col gap-6 py-8 px-6">
-        <header className="relative flex items-center gap-4">
+        <header className="relative flex items-center justify-between gap-4">
           <button
             onClick={() => setSettingsOpen(true)}
             className="flex h-11 w-11 items-center justify-center rounded-2xl bg-white/10 text-xl shadow-[inset_0_0_0_1px_rgba(255,255,255,0.2)] transition hover:bg-white/20"
@@ -1513,31 +1537,40 @@ export default function Home() {
               onPointerMove={handleBoardPointerMove}
               className="relative touch-none rounded-[34px] bg-white/5 p-6 shadow-[0_24px_40px_rgba(0,0,0,0.4)] ring-1 ring-white/20"
             >
-              <div
-                className="relative mx-auto"
-                style={{ width: boardWidth, height: boardHeight }}
-              >
+            <div
+              className="relative mx-auto"
+              style={{ width: renderedBoardWidth, height: renderedBoardHeight }}
+            >
                 {tilesInPlay.map((tile) => {
                   const isSelected = selected.includes(tile.id);
                   const isClearing = clearing.includes(tile.id);
                   const isHinted = hintPath.includes(tile.id);
                   const columnIndex = columnMap[tile.col] ?? 0;
-                  const x =
-                    columnIndex * (tileSize + tileGap) + horizontalOffset;
-                  const y = tile.row * (tileSize + tileGap);
+                  const baseX =
+                    columnIndex * (renderedTileSize + renderedTileGap) +
+                    renderedHorizontalOffset;
+                  const baseY = tile.row * (renderedTileSize + renderedTileGap);
                   const scale = isClearing ? 0.2 : isSelected ? 1.05 : 1;
                   const rotate = isClearing ? -8 : 0;
                   const offset = tileOffsets[tile.id] ?? { x: 0, y: 0 };
+                  const scaledOffset = {
+                    x: offset.x * renderScale,
+                    y: offset.y * renderScale,
+                  };
                   const tileStyle = {
-                    width: tileSize,
-                    height: tileSize,
-                    fontSize: Math.max(18, Math.round(tileSize * 0.45)),
+                    width: renderedTileSize,
+                    height: renderedTileSize,
+                    borderRadius: `${tileRadius}px`,
+                    fontSize: Math.max(
+                      18,
+                      Math.round(renderedTileSize * 0.45),
+                    ),
                     transform:
                       "translate3d(calc(var(--tile-x) + var(--tile-offset-x)), calc(var(--tile-y) + var(--tile-offset-y)), 0) scale(var(--tile-scale)) rotate(var(--tile-rotate))",
-                    ["--tile-x" as const]: `${x}px`,
-                    ["--tile-y" as const]: `${y}px`,
-                    ["--tile-offset-x" as const]: `${offset.x}px`,
-                    ["--tile-offset-y" as const]: `${offset.y}px`,
+                    ["--tile-x" as const]: `${baseX}px`,
+                    ["--tile-y" as const]: `${baseY}px`,
+                    ["--tile-offset-x" as const]: `${scaledOffset.x}px`,
+                    ["--tile-offset-y" as const]: `${scaledOffset.y}px`,
                     ["--tile-scale" as const]: `${scale}`,
                     ["--tile-rotate" as const]: `${rotate}deg`,
                   } as React.CSSProperties;
@@ -1547,7 +1580,7 @@ export default function Home() {
                       data-tile-id={tile.id}
                       onPointerDown={() => handlePointerDown(tile.id)}
                       onPointerEnter={() => extendSelection(tile.id)}
-                      className={`absolute flex touch-none select-none items-center justify-center rounded-2xl font-semibold shadow-[0_10px_18px_rgba(0,0,0,0.35)] transition-[transform,opacity,filter] duration-500 ease-[cubic-bezier(0.2,0.7,0.2,1)] ${
+                      className={`absolute flex touch-none select-none items-center justify-center font-semibold shadow-[0_10px_18px_rgba(0,0,0,0.35)] transition-[transform,opacity,filter] duration-500 ease-[cubic-bezier(0.2,0.7,0.2,1)] ${
                         isClearing
                           ? "bg-[#f7d35f]/70 text-[#2a220f] opacity-0 blur-[1px]"
                           : isSelected
