@@ -19,6 +19,15 @@ const BASE_TILE_SIZE = 76;
 const BASE_TILE_GAP = 12;
 const WORD_COUNT = 10;
 const ACTIVE_WORD_LIMIT = 2;
+const GRID_SIZE = 10;
+const SCREEN_HORIZONTAL_PADDING = 48;
+const SCREEN_VERTICAL_PADDING = 220;
+const MIN_AVAILABLE_HEIGHT = 320;
+const SHELL_PADDING = 48;
+const MIN_TILE_SIZE = 40;
+const MIN_TILE_GAP = 6;
+const BOARD_SHELL_MIN_WIDTH = 280;
+const BOARD_SHELL_MAX_WIDTH = 720;
 
 const TOPIC_LIBRARY: Topic[] = [
   {
@@ -474,19 +483,17 @@ const pickWords = (words: string[]) => {
   return shuffleArray(words).slice(0, WORD_COUNT);
 };
 
+const createFullRowLengths = () =>
+  Array.from({ length: GRID_SIZE }, () => GRID_SIZE);
+
 const computeGridLayout = (words: string[], mode: Mode) => {
-  const totalLetters = words.reduce((sum, word) => sum + word.length, 0);
-  const maxWordLength = words.reduce(
-    (max, word) => Math.max(max, word.length),
-    0,
-  );
-  let cols = Math.ceil(Math.sqrt(totalLetters));
-  if (mode === "line" && maxWordLength > cols) {
-    cols = maxWordLength;
-  }
-  const rows = Math.ceil(totalLetters / cols);
-  const rowLengths = Array.from({ length: rows }, () => cols);
-  return { rows, cols, rowLengths };
+  void words;
+  void mode;
+  return {
+    rows: GRID_SIZE,
+    cols: GRID_SIZE,
+    rowLengths: createFullRowLengths(),
+  };
 };
 
 const createLetterGrid = (rows: number, cols: number): (string | null)[][] =>
@@ -695,28 +702,23 @@ const buildBoard = (
 };
 
 const buildLinearBoard = (words: string[]) => {
-  const rows = Math.max(words.length, 1);
-  const cols =
-    Math.max(
-      words.reduce((max, word) => Math.max(max, word.length), 0),
-      1,
-    );
-  const rowLengths = Array.from({ length: rows }, (_, rowIndex) =>
-    words[rowIndex]?.length ?? 0,
-  );
+  const rows = GRID_SIZE;
+  const cols = GRID_SIZE;
+  const rowLengths = createFullRowLengths();
   const tiles: Record<string, Tile> = {};
   let idCounter = 0;
-  const grid = Array.from({ length: rows }, (_, rowIndex) =>
-    Array.from({ length: cols }, (_, colIndex) => {
-      const letters = words[rowIndex] ?? "";
-      if (colIndex >= letters.length) {
-        return null;
-      }
-      const id = `tile-${idCounter++}`;
-      tiles[id] = { id, letter: letters[colIndex] };
-      return id;
-    }),
-  );
+  const grid = createLetterGrid(rows, cols);
+  const letters = words.flatMap((word) => word.split(""));
+  const maxCells = rows * cols;
+  const letterCount = Math.min(letters.length, maxCells);
+  for (let index = 0; index < letterCount; index += 1) {
+    const row = Math.floor(index / cols);
+    const col = index % cols;
+    const letter = letters[index];
+    const id = `tile-${idCounter++}`;
+    tiles[id] = { id, letter };
+    grid[row][col] = id;
+  }
   return { grid, tiles, rows, cols, rowLengths };
 };
 
@@ -803,8 +805,8 @@ export default function Home() {
   const [selected, setSelected] = useState<string[]>([]);
   const [clearing, setClearing] = useState<string[]>([]);
   const [hintPath, setHintPath] = useState<string[]>([]);
-  const [earned, setEarned] = useState<string[]>([]);
-  const [message, setMessage] = useState(
+  const [, setEarned] = useState<string[]>([]);
+  const [, setMessage] = useState(
     "Swipe across adjacent tiles to earn the word.",
   );
   const [isDragging, setIsDragging] = useState(false);
@@ -860,21 +862,33 @@ export default function Home() {
 
   useEffect(() => {
     const updateSizing = () => {
-      const padding = 48;
-      const availableWidth = Math.max(280, window.innerWidth - padding);
+      const clampedShellWidth = Math.min(
+        BOARD_SHELL_MAX_WIDTH,
+        Math.max(
+          BOARD_SHELL_MIN_WIDTH,
+          window.innerWidth - SCREEN_HORIZONTAL_PADDING,
+        ),
+      );
+      const availableHeight = Math.max(
+        MIN_AVAILABLE_HEIGHT,
+        window.innerHeight - SCREEN_VERTICAL_PADDING,
+      );
       const desiredBoardWidth =
         cols * BASE_TILE_SIZE + (cols - 1) * BASE_TILE_GAP;
-      const desiredShellWidth = desiredBoardWidth + 48;
-      const scale = Math.min(1, availableWidth / desiredShellWidth);
-      const minTile = 40;
-      const minGap = 6;
-      setTileSize(Math.max(minTile, Math.floor(BASE_TILE_SIZE * scale)));
-      setTileGap(Math.max(minGap, Math.floor(BASE_TILE_GAP * scale)));
+      const desiredBoardHeight =
+        rows * BASE_TILE_SIZE + (rows - 1) * BASE_TILE_GAP;
+      const desiredShellWidth = desiredBoardWidth + SHELL_PADDING;
+      const desiredShellHeight = desiredBoardHeight + SHELL_PADDING;
+      const widthScale = clampedShellWidth / desiredShellWidth;
+      const heightScale = availableHeight / desiredShellHeight;
+      const scale = Math.min(1, widthScale, heightScale);
+      setTileSize(Math.max(MIN_TILE_SIZE, Math.floor(BASE_TILE_SIZE * scale)));
+      setTileGap(Math.max(MIN_TILE_GAP, Math.floor(BASE_TILE_GAP * scale)));
     };
     updateSizing();
     window.addEventListener("resize", updateSizing);
     return () => window.removeEventListener("resize", updateSizing);
-  }, [cols]);
+  }, [cols, rows]);
 
   const positions = useMemo(() => {
     const map: Record<string, { row: number; col: number }> = {};
@@ -1066,7 +1080,7 @@ export default function Home() {
     }, 350);
     setFoundHistory((prev) => (prev.includes(word) ? prev : [...prev, word]));
   },
-  [mode, remainingWords, rows, cols, rowLengths],
+  [remainingWords, rows, cols, rowLengths],
 );
 
   const finishSelection = useCallback(() => {
@@ -1411,7 +1425,7 @@ export default function Home() {
       }
       return { words: unique.slice(0, maxWords), warning };
     },
-    [mode],
+    [],
   );
 
   const handleGenerate = () => {
