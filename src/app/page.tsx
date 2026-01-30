@@ -1343,16 +1343,21 @@ export default function Home() {
     [remainingWords, resetBoard, topic],
   );
 
+  const victoryHandledRef = useRef(false);
   /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     if (remainingWords.length > 0) {
+      victoryHandledRef.current = false;
       return;
     }
+    if (victoryHandledRef.current) {
+      return;
+    }
+    victoryHandledRef.current = true;
     setMessage("All words found! Nice work.");
     setVictoryOpen(true);
     setSettingsOpen(false);
   }, [remainingWords]);
-
   /* eslint-enable react-hooks/set-state-in-effect */
 
   const handleModeChange = (nextMode: Mode) => {
@@ -1430,11 +1435,12 @@ export default function Home() {
     setWordInput(words.join(", "));
   };
 
-  const boardWidth =
-    displayCols * tileSize + Math.max(displayCols - 1, 0) * tileGap;
+  const boardWidth = cols * tileSize + (cols - 1) * tileGap;
   const boardHeight = rows * tileSize + (rows - 1) * tileGap;
   const boardShellWidth = boardWidth + 48;
   const score = foundWords.length * 120;
+  const horizontalOffset =
+    ((cols - displayCols) / 2) * (tileSize + tileGap);
 
   return (
     <div className="relative min-h-screen overflow-hidden bg-[#0b1726] text-slate-100">
@@ -1473,6 +1479,9 @@ export default function Home() {
         </header>
 
         <main className="flex flex-1 flex-col items-center justify-center py-10">
+          <div className="mb-4 text-center text-2xl font-semibold uppercase tracking-[0.35em] text-white">
+            {selectedWord || "—"}
+          </div>
           <div
             className="relative w-full max-w-full"
             style={{ width: boardShellWidth }}
@@ -1491,7 +1500,7 @@ export default function Home() {
                   const isClearing = clearing.includes(tile.id);
                   const isHinted = hintPath.includes(tile.id);
                   const columnIndex = columnMap[tile.col] ?? 0;
-                  const x = columnIndex * (tileSize + tileGap);
+                  const x = columnIndex * (tileSize + tileGap) + horizontalOffset;
                   const y = tile.row * (tileSize + tileGap);
                   const scale = isClearing ? 0.2 : isSelected ? 1.05 : 1;
                   const rotate = isClearing ? -8 : 0;
