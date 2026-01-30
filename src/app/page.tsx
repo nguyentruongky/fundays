@@ -456,28 +456,6 @@ const pickWords = (words: string[]) => {
   return shuffleArray(words).slice(0, WORD_COUNT);
 };
 
-const scrambleWord = (word: string) => {
-  if (word.length <= 2) {
-    return word.split("").reverse().join("");
-  }
-  const letters = word.split("");
-  const left = 1;
-  const right = word.length - 2;
-  if (right > left) {
-    [letters[left], letters[right]] = [letters[right], letters[left]];
-  } else {
-    [letters[0], letters[word.length - 1]] = [
-      letters[word.length - 1],
-      letters[0],
-    ];
-  }
-  const scrambled = letters.join("");
-  if (scrambled === word) {
-    return letters.slice(1).concat(letters[0]).join("");
-  }
-  return scrambled;
-};
-
 const computeGridLayout = (words: string[], mode: Mode) => {
   const totalLetters = words.reduce((sum, word) => sum + word.length, 0);
   const maxWordLength = words.reduce(
@@ -1131,14 +1109,6 @@ export default function Home() {
 
   const selectedWord = selected.map((id) => tiles[id]?.letter ?? "").join("");
 
-  const scrambledWords = useMemo(() => {
-    const map: Record<string, string> = {};
-    wordList.forEach((word) => {
-      map[word] = scrambleWord(word);
-    });
-    return map;
-  }, [wordList]);
-
   const foundWords = useMemo(
     () => wordList.filter((word) => !remainingWords.includes(word)),
     [wordList, remainingWords],
@@ -1703,8 +1673,7 @@ export default function Home() {
                     wordList.map((word) => {
                       const found = foundWords.includes(word);
                       const isActive = activeWords.includes(word);
-                      const displayWord =
-                        found || isActive ? word : scrambledWords[word] ?? word;
+                      const displayWord = word;
                       return (
                         <span
                           key={word}
