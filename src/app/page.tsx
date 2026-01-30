@@ -826,7 +826,6 @@ export default function Home() {
 
   const selectedRef = useRef(selected);
   const lockedRef = useRef(locked);
-  const targetWord = remainingWords[0] ?? null;
   const prevPositionsRef = useRef<Record<string, { row: number; col: number }>>(
     {},
   );
@@ -1301,30 +1300,40 @@ export default function Home() {
     [mode],
   );
 
-  const handleHint = () => {
+  const handleHint = useCallback(() => {
     if (lockedRef.current) {
       return;
     }
     if (hintTimerRef.current) {
       window.clearTimeout(hintTimerRef.current);
+      hintTimerRef.current = null;
     }
-    if (!targetWord) {
+    if (remainingWords.length === 0) {
       setMessage("All words found. Shuffle for a new board.");
       return;
     }
-    const path = findWordPath(targetWord);
-    if (!path) {
+    let hintWord: string | null = null;
+    let hintPath: string[] | null = null;
+    for (const word of remainingWords) {
+      const path = findWordPath(word);
+      if (path) {
+        hintWord = word;
+        hintPath = path;
+        break;
+      }
+    }
+    if (!hintPath || !hintWord) {
       setMessage("No hint available. Shuffle to try again.");
       return;
     }
-    setHintPath(path);
+    setHintPath(hintPath);
     setSelected([]);
-    setMessage("Hint: follow the blue glow.");
+    setMessage(`Hint: follow the blue glow for ${hintWord}.`);
     hintTimerRef.current = window.setTimeout(() => {
       setHintPath([]);
       hintTimerRef.current = null;
     }, 1500);
-  };
+  }, [findWordPath, remainingWords]);
 
   const handleShuffle = useCallback(
     (forceNewTopic = false) => {
