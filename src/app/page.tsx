@@ -443,6 +443,24 @@ const TOPIC_LIBRARY: Topic[] = [
   },
 ];
 
+const pickRandomTopic = (exclude?: Topic) => {
+  if (TOPIC_LIBRARY.length === 0) {
+    throw new Error("No topics available");
+  }
+  if (!exclude || TOPIC_LIBRARY.length === 1) {
+    return TOPIC_LIBRARY[0];
+  }
+  let candidate = exclude;
+  while (candidate.name === exclude.name) {
+    candidate =
+      TOPIC_LIBRARY[Math.floor(Math.random() * TOPIC_LIBRARY.length)];
+    if (TOPIC_LIBRARY.length === 1) {
+      break;
+    }
+  }
+  return candidate;
+};
+
 const shuffleArray = <T,>(items: T[]) => {
   const array = [...items];
   for (let i = array.length - 1; i > 0; i -= 1) {
@@ -773,8 +791,6 @@ export default function Home() {
   const [tiles, setTiles] = useState<Record<string, Tile>>(initialBoard.tiles);
   const boardRef = useRef<HTMLDivElement>(null);
   const hintTimerRef = useRef<number | null>(null);
-  const autoShuffleTimerRef = useRef<number | null>(null);
-  const pendingAutoShuffleRef = useRef(false);
   const [wordInput, setWordInput] = useState(initialWords.join(", "));
   const needsNormalizationRef = useRef(true);
 
@@ -820,9 +836,6 @@ export default function Home() {
     return () => {
       if (hintTimerRef.current) {
         window.clearTimeout(hintTimerRef.current);
-      }
-      if (autoShuffleTimerRef.current) {
-        window.clearTimeout(autoShuffleTimerRef.current);
       }
     };
   }, []);
@@ -1297,71 +1310,50 @@ export default function Home() {
     }, 1500);
   };
 
-  const handleShuffle = () => {
-    if (lockedRef.current) {
-      return;
-    }
-    if (hintTimerRef.current) {
-      window.clearTimeout(hintTimerRef.current);
-      hintTimerRef.current = null;
-    }
-    if (autoShuffleTimerRef.current) {
-      window.clearTimeout(autoShuffleTimerRef.current);
-      autoShuffleTimerRef.current = null;
-    }
-    pendingAutoShuffleRef.current = false;
-    const nextWords =
-      remainingWords.length > 0 ? remainingWords : pickWords(topic.words);
-    if (remainingWords.length === 0) {
-      setWordList(nextWords);
-      setRemainingWords(nextWords);
-      setActiveCount(Math.min(1, nextWords.length));
-      setEarned([]);
-    }
-    resetBoard(nextWords, "Shuffled! Words rehung in the grid.");
-  };
+  const handleShuffle = useCallback(
+    (forceNewTopic = false) => {
+      if (lockedRef.current) {
+        return;
+      }
+      if (hintTimerRef.current) {
+        window.clearTimeout(hintTimerRef.current);
+        hintTimerRef.current = null;
+      }
+      const shouldPickNewTopic = forceNewTopic || remainingWords.length === 0;
+      const nextTopic = shouldPickNewTopic
+        ? pickRandomTopic(topic)
+        : topic;
+      const nextWords =
+        remainingWords.length > 0 && !forceNewTopic
+          ? remainingWords
+          : pickWords(nextTopic.words);
+      if (shouldPickNewTopic) {
+        setTopic(nextTopic);
+        setWordList(nextWords);
+        setRemainingWords(nextWords);
+        setActiveCount(Math.min(1, nextWords.length));
+        setEarned([]);
+        setWordInput(nextWords.join(", "));
+      }
+      const nextMessage = shouldPickNewTopic
+        ? `New board: ${nextTopic.name}`
+        : "Shuffled! Words rehung in the grid.";
+      resetBoard(nextWords, nextMessage);
+    },
+    [remainingWords, resetBoard, topic],
+  );
 
   /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     if (remainingWords.length > 0) {
-      pendingAutoShuffleRef.current = false;
       return;
     }
-    setMessage("All words found! Shuffle for a new board.");
+    setMessage("All words found! Nice work.");
     setVictoryOpen(true);
     setSettingsOpen(false);
-    if (lockedRef.current) {
-      pendingAutoShuffleRef.current = true;
-      return;
-    }
-    if (autoShuffleTimerRef.current) {
-      window.clearTimeout(autoShuffleTimerRef.current);
-    }
-    autoShuffleTimerRef.current = window.setTimeout(() => {
-      handleShuffle();
-    }, 900);
-  }, [handleShuffle, remainingWords]);
-  /* eslint-enable react-hooks/set-state-in-effect */
+  }, [remainingWords]);
 
-  useEffect(() => {
-    if (!pendingAutoShuffleRef.current) {
-      return;
-    }
-    if (locked) {
-      return;
-    }
-    if (remainingWords.length > 0) {
-      pendingAutoShuffleRef.current = false;
-      return;
-    }
-    pendingAutoShuffleRef.current = false;
-    if (autoShuffleTimerRef.current) {
-      window.clearTimeout(autoShuffleTimerRef.current);
-    }
-    autoShuffleTimerRef.current = window.setTimeout(() => {
-      handleShuffle();
-    }, 900);
-  }, [handleShuffle, locked, remainingWords]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   const handleModeChange = (nextMode: Mode) => {
     if (mode === nextMode || lockedRef.current) {
@@ -1719,30 +1711,38 @@ export default function Home() {
 
       {victoryOpen ? (
         <div className="fixed inset-0 z-40 flex items-center justify-center bg-[#08121f]/85 px-6 backdrop-blur">
-          <div className="w-full max-w-md rounded-[28px] border border-white/10 bg-[#0f2238]/95 p-6 text-center shadow-[0_30px_60px_rgba(0,0,0,0.55)]">
+          <div className="w-full max-w-lg rounded-[28px] border border-white/10 bg-[#0f2238]/95 p-6 text-center shadow-[0_30px_60px_rgba(0,0,0,0.55)]">
             <p className="text-xs uppercase tracking-[0.4em] text-white/60">
-              Victory
+              Game complete
             </p>
             <p className="mt-2 text-3xl font-(--font-display) text-[#f7d35f]">
-              All words found
+              {topic.name} cleared
             </p>
-            <p className="mt-3 text-sm text-white/70">
-              Score: {score}. Shuffle to play a fresh set.
+            <p className="mt-2 text-sm uppercase tracking-[0.3em] text-white/70">
+              Total score
             </p>
-            <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
-              <button
-                onClick={handleShuffle}
-                className="rounded-full bg-[#f7d35f] px-5 py-2 text-xs font-semibold uppercase tracking-[0.3em] text-[#2a220f] transition hover:brightness-95"
-              >
-                Play again
-              </button>
-              <button
-                onClick={() => setVictoryOpen(false)}
-                className="rounded-full bg-white/10 px-4 py-2 text-xs font-semibold uppercase tracking-[0.3em] text-white/70 transition hover:bg-white/20"
-              >
-                Keep board
-              </button>
+            <p className="text-5xl font-semibold text-white">{score}</p>
+            <div className="mt-4 rounded-2xl bg-white/5 p-4 text-left shadow-[inset_0_0_0_1px_rgba(255,255,255,0.08)]">
+              <p className="text-xs uppercase tracking-[0.4em] text-white/40">
+                Found words
+              </p>
+              <div className="mt-3 flex flex-wrap gap-2">
+                {foundWords.map((word) => (
+                  <span
+                    key={word}
+                    className="rounded-full bg-white/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.25em] text-white/70"
+                  >
+                    {word}
+                  </span>
+                ))}
+              </div>
             </div>
+            <button
+              onClick={() => handleShuffle(true)}
+              className="mt-6 w-full rounded-full bg-[#f7d35f] px-5 py-3 text-xs font-semibold uppercase tracking-[0.3em] text-[#2a220f] transition hover:brightness-95"
+            >
+              Next game
+            </button>
           </div>
         </div>
       ) : null}
