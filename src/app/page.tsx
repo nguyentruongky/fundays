@@ -810,12 +810,17 @@ export default function Home() {
   const [isDragging, setIsDragging] = useState(false);
   const [locked, setLocked] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [settingsTab, setSettingsTab] = useState<
+    "common" | "default" | "custom"
+  >("common");
+  const [soundEnabled, setSoundEnabled] = useState(true);
   const [victoryOpen, setVictoryOpen] = useState(false);
   const [tileSize, setTileSize] = useState(BASE_TILE_SIZE);
   const [tileGap, setTileGap] = useState(BASE_TILE_GAP);
   const [tileOffsets, setTileOffsets] = useState<
     Record<string, { x: number; y: number }>
   >({});
+  const [foundHistory, setFoundHistory] = useState<string[]>([]);
 
   const selectedRef = useRef(selected);
   const lockedRef = useRef(locked);
@@ -1034,15 +1039,15 @@ export default function Home() {
       setSelected([]);
       setHintPath([]);
       setIsDragging(false);
-      setMessage(`Great! ${word} cleared.`);
-      setEarned((prev) => {
-        if (prev.includes(word)) {
-          return prev;
-        }
-        return [word, ...prev].slice(0, 4);
-      });
-      const nextRemaining = remainingWords.filter((entry) => entry !== word);
-      setRemainingWords(nextRemaining);
+    setMessage(`Great! ${word} cleared.`);
+    setEarned((prev) => {
+      if (prev.includes(word)) {
+        return prev;
+      }
+      return [word, ...prev].slice(0, 4);
+    });
+    const nextRemaining = remainingWords.filter((entry) => entry !== word);
+    setRemainingWords(nextRemaining);
       setActiveCount((prev) => {
         if (nextRemaining.length === 0) {
           return 0;
@@ -1053,15 +1058,16 @@ export default function Home() {
         return Math.min(prev + 1, ACTIVE_WORD_LIMIT, nextRemaining.length);
       });
 
-      const removed = new Set(selection);
-      window.setTimeout(() => {
-        setGrid((prev) => applyRemoval(prev, removed, rows, cols, rowLengths));
-        setClearing([]);
-        setLocked(false);
-      }, 350);
-    },
-    [mode, remainingWords, rows, cols, rowLengths],
-  );
+    const removed = new Set(selection);
+    window.setTimeout(() => {
+      setGrid((prev) => applyRemoval(prev, removed, rows, cols, rowLengths));
+      setClearing([]);
+      setLocked(false);
+    }, 350);
+    setFoundHistory((prev) => (prev.includes(word) ? prev : [...prev, word]));
+  },
+  [mode, remainingWords, rows, cols, rowLengths],
+);
 
   const finishSelection = useCallback(() => {
     if (!isDragging) {
@@ -1072,12 +1078,7 @@ export default function Home() {
     setSelected([]);
     setHintPath([]);
     const word = selection.map((id) => tiles[id]?.letter ?? "").join("");
-    const reversedWord = word.split("").reverse().join("");
-    const matchedWord = remainingWords.includes(word)
-      ? word
-      : remainingWords.includes(reversedWord)
-        ? reversedWord
-        : null;
+    const matchedWord = remainingWords.includes(word) ? word : null;
     if (matchedWord) {
       clearWord(selection, matchedWord);
     } else if (word.length > 0) {
@@ -1280,6 +1281,7 @@ export default function Home() {
       setVictoryOpen(false);
       setMessage(nextMessage);
       needsNormalizationRef.current = true;
+      setFoundHistory([]);
       return true;
     },
     [mode],
@@ -1543,6 +1545,25 @@ export default function Home() {
               </div>
             </div>
           </div>
+          <div className="flex w-full max-w-full flex-col items-center gap-3 text-center">
+            <p className="text-xs uppercase tracking-[0.35em] text-white/60">
+              Found words
+            </p>
+            <div className="flex flex-wrap justify-center gap-2">
+              {foundHistory.length === 0 ? (
+                <span className="text-sm text-white/60">No words yet</span>
+              ) : (
+                foundHistory.map((word) => (
+                  <span
+                    key={word}
+                    className="rounded-full bg-white/10 px-3 py-1 text-sm font-semibold tracking-[0.2em] text-white/60"
+                  >
+                    {word}
+                  </span>
+                ))
+              )}
+            </div>
+          </div>
         </main>
       </div>
 
@@ -1555,8 +1576,14 @@ export default function Home() {
       </button>
 
       {settingsOpen ? (
-        <div className="fixed inset-0 z-30 flex items-start justify-center bg-[#08121f]/80 px-6 py-10 backdrop-blur">
-          <div className="w-full max-w-3xl rounded-4xl border border-white/10 bg-[#0f2238]/95 p-6 shadow-[0_30px_60px_rgba(0,0,0,0.5)]">
+        <div
+          className="fixed inset-0 z-30 flex items-start justify-center bg-[#08121f]/80 px-6 py-10 backdrop-blur"
+          onClick={() => setSettingsOpen(false)}
+        >
+          <div
+            className="w-full max-w-3xl rounded-4xl border border-white/10 bg-[#0f2238]/95 p-6 shadow-[0_30px_60px_rgba(0,0,0,0.5)]"
+            onClick={(event) => event.stopPropagation()}
+          >
             <div className="flex flex-wrap items-center justify-between gap-4">
               <div>
                 <p className="text-xs uppercase tracking-[0.4em] text-white/60">
@@ -1574,151 +1601,169 @@ export default function Home() {
               </button>
             </div>
 
-            <div className="mt-6 grid gap-4 lg:grid-cols-[1.1fr_0.9fr]">
-              <div className="rounded-2xl bg-white/5 p-4 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.08)]">
-                <p className="text-xs uppercase tracking-[0.35em] text-white/60">
-                  Target word
-                </p>
-                <p className="mt-2 text-3xl font-(--font-display) text-white">
-                  {targetWord ?? "All found"}
-                </p>
-                <p className="mt-3 text-sm text-white/70">
-                  {message}{" "}
-                  {targetWord
-                    ? `Make ${targetWord} to clear tiles and drop the stack.`
-                    : "Shuffle for a new set of hidden words."}
-                </p>
-                <div className="mt-4 flex flex-wrap gap-2">
+            <div className="mt-6 flex gap-2 rounded-full bg-white/5 p-1">
+              {[
+                { label: "Common", key: "common" },
+                { label: "Default game", key: "default" },
+                { label: "Custom game", key: "custom" },
+              ].map((tab) => {
+                const active = settingsTab === tab.key;
+                return (
                   <button
-                    onClick={handleHint}
-                    className="rounded-full bg-[#74d3ff]/20 px-4 py-2 text-xs font-semibold uppercase tracking-[0.3em] text-[#bfeaff] transition hover:bg-[#74d3ff]/30"
-                  >
-                    Hint
-                  </button>
-                  <button
-                    onClick={handleShuffle}
-                    className="rounded-full bg-white/10 px-4 py-2 text-xs font-semibold uppercase tracking-[0.3em] text-white/80 transition hover:bg-white/20"
-                  >
-                    Shuffle
-                  </button>
-                </div>
-              </div>
-
-              <div className="rounded-2xl bg-white/5 p-4 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.08)]">
-                <p className="text-xs uppercase tracking-[0.35em] text-white/60">
-                  Mode
-                </p>
-                <div className="mt-3 grid grid-cols-2 gap-2">
-                  <button
-                    onClick={() => handleModeChange("path")}
-                    className={`rounded-xl px-3 py-2 text-xs font-semibold uppercase tracking-[0.25em] transition ${
-                      mode === "path"
-                        ? "bg-[#f7d35f] text-[#2a220f]"
-                        : "bg-white/10 text-white/70 hover:bg-white/20"
+                    key={tab.key}
+                    onClick={() =>
+                      setSettingsTab(
+                        tab.key as "common" | "default" | "custom",
+                      )
+                    }
+                    className={`flex-1 rounded-full px-4 py-2 text-[0.65rem] sm:text-xs font-semibold uppercase tracking-[0.35em] transition ${
+                      active
+                        ? "bg-white text-[#08121f]"
+                        : "text-white/60 hover:text-white"
                     }`}
                   >
-                    Path
+                    {tab.label}
                   </button>
-                  <button
-                    onClick={() => handleModeChange("line")}
-                    className={`rounded-xl px-3 py-2 text-xs font-semibold uppercase tracking-[0.25em] transition ${
-                      mode === "line"
-                        ? "bg-[#f7d35f] text-[#2a220f]"
-                        : "bg-white/10 text-white/70 hover:bg-white/20"
-                    }`}
-                  >
-                    Row/Col
-                  </button>
-                </div>
-                <p className="mt-3 text-xs uppercase tracking-[0.3em] text-white/50">
-                  {mode === "line"
-                    ? "Longest word sets the grid width."
-                    : "Paths can turn. Grid scales to total letters."}
-                </p>
-                <div className="mt-4">
-                  <p className="text-xs uppercase tracking-[0.35em] text-white/60">
-                    Current word
-                  </p>
-                  <p className="mt-2 text-2xl font-(--font-display) text-[#f7d35f]">
-                    {selectedWord || "—"}
-                  </p>
-                </div>
-              </div>
+                );
+              })}
+            </div>
 
-              <div className="rounded-2xl bg-white/5 p-4 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.08)] lg:col-span-2">
-                <p className="text-xs uppercase tracking-[0.35em] text-white/60">
-                  Word list
-                </p>
-                <textarea
-                  value={wordInput}
-                  onChange={(event) => setWordInput(event.target.value)}
-                  placeholder="apple, pear, lime"
-                  rows={3}
-                  className="mt-3 w-full resize-none rounded-xl bg-white/10 px-3 py-2 text-sm text-white/90 placeholder:text-white/40 focus:outline-none focus:ring-2 focus:ring-[#74d3ff]/70"
-                />
-                <button
-                  onClick={handleGenerate}
-                  className="mt-3 w-full rounded-xl bg-[#f7d35f] px-3 py-2 text-xs font-semibold uppercase tracking-[0.3em] text-[#2a220f] transition hover:brightness-95"
-                >
-                  Generate board
-                </button>
-              </div>
-
-              <div className="rounded-2xl bg-white/5 p-4 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.08)] lg:col-span-2">
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <p className="text-xs uppercase tracking-[0.35em] text-white/60">
-                    Hidden words
-                  </p>
-                  <p className="text-xs uppercase tracking-[0.35em] text-white/40">
-                    Found {foundWords.length}/{wordList.length}
-                  </p>
-                </div>
-                <div className="mt-3 flex flex-wrap gap-2">
-                  {wordList.length === 0 ? (
-                    <span className="text-sm text-white/60">Loading words</span>
-                  ) : (
-                    wordList.map((word) => {
-                      const found = foundWords.includes(word);
-                      const isActive = activeWords.includes(word);
-                      const displayWord = word;
-                      return (
-                        <span
-                          key={word}
-                          className={`rounded-full px-3 py-1 text-sm font-semibold tracking-[0.2em] ${
-                            found
-                              ? "bg-white/10 text-white/40 line-through"
-                              : isActive
-                                ? "bg-[#74d3ff]/20 text-[#bfeaff]"
-                                : "bg-white/10 text-white/50"
-                          }`}
-                        >
-                          {displayWord}
-                        </span>
-                      );
-                    })
-                  )}
-                </div>
-              </div>
-
-              <div className="rounded-2xl bg-white/5 p-4 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.08)] lg:col-span-2">
-                <p className="text-xs uppercase tracking-[0.35em] text-white/60">
-                  Found words
-                </p>
-                <div className="mt-3 flex flex-wrap gap-2">
-                  {earned.length === 0 ? (
-                    <span className="text-sm text-white/60">No words yet</span>
-                  ) : (
-                    earned.map((word) => (
+            <div className="mt-6 space-y-4">
+              {settingsTab === "common" && (
+                <div className="space-y-6 rounded-2xl bg-white/5 p-4 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.08)]">
+                  <div className="flex items-center justify-between">
+                    <p className="text-xs uppercase tracking-[0.35em] text-white/60">
+                      Sounds
+                    </p>
+                    <button
+                      onClick={() => setSoundEnabled((prev) => !prev)}
+                      className={`flex h-10 w-16 items-center rounded-full px-1 transition ${
+                        soundEnabled ? "bg-[#74d3ff]/70" : "bg-white/10"
+                      }`}
+                    >
                       <span
-                        key={word}
-                        className="rounded-full bg-white/20 px-3 py-1 text-sm font-semibold tracking-[0.2em] text-white/80"
-                      >
-                        {word}
-                      </span>
-                    ))
-                  )}
+                        className={`h-8 w-8 rounded-full bg-white shadow transition ${
+                          soundEnabled ? "translate-x-7" : "translate-x-1"
+                        }`}
+                      />
+                    </button>
+                  </div>
+                  <div className="space-y-3">
+                    <p className="text-xs uppercase tracking-[0.35em] text-white/60">
+                      Mode
+                    </p>
+                    <div className="grid gap-3">
+                      {[
+                        {
+                          key: "path",
+                          label: "Path",
+                          description:
+                            "Paths can turn. Grid scales to total letters.",
+                        },
+                        {
+                          key: "line",
+                          label: "Row/Col",
+                          description:
+                            "Longest word sets the grid width.",
+                        },
+                      ].map((option) => {
+                        const active = mode === option.key;
+                        return (
+                          <label
+                            key={option.key}
+                            className={`flex cursor-pointer items-center justify-between rounded-2xl border px-4 py-3 transition ${
+                              active
+                                ? "border-[#f7d35f] bg-white/10"
+                                : "border-white/10 bg-transparent hover:border-white/30"
+                            }`}
+                          >
+                            <div>
+                              <p className="text-sm font-semibold uppercase tracking-[0.25em]">
+                                {option.label}
+                              </p>
+                              <p className="text-xs text-white/60">
+                                {option.description}
+                              </p>
+                            </div>
+                            <input
+                              type="radio"
+                              name="mode"
+                              checked={active}
+                              onChange={() => handleModeChange(option.key as Mode)}
+                              className="hidden"
+                            />
+                            <span
+                              className={`h-4 w-4 rounded-full border transition ${
+                                active
+                                  ? "border-[#f7d35f] bg-[#f7d35f]"
+                                  : "border-white/40 bg-transparent"
+                              }`}
+                            />
+                          </label>
+                        );
+                      })}
+                    </div>
+                  </div>
                 </div>
-              </div>
+              )}
+
+              {settingsTab === "default" && (
+                <div className="space-y-4 rounded-2xl bg-white/5 p-4 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.08)]">
+                  <div className="flex items-center justify-between">
+                    <p className="text-xs uppercase tracking-[0.35em] text-white/60">
+                      Hidden words
+                    </p>
+                   
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {wordList.length === 0 ? (
+                      <span className="text-sm text-white/60">Loading words</span>
+                    ) : (
+                      wordList.map((word) => {
+                        const found = foundWords.includes(word);
+                        const isActive = activeWords.includes(word);
+                        return (
+                          <span
+                            key={word}
+                            className={`rounded-full px-3 py-1 text-sm font-semibold tracking-[0.2em] ${
+                              found
+                                ? "bg-white/10 text-white/40 line-through"
+                                : isActive
+                                  ? "bg-[#74d3ff]/20 text-[#bfeaff]"
+                                  : "bg-white/10 text-white/50"
+                            }`}
+                          >
+                            {word}
+                          </span>
+                        );
+                      })
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {settingsTab === "custom" && (
+                <div className="space-y-4 rounded-2xl bg-white/5 p-4 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.08)]">
+                  <div>
+                    <p className="text-xs uppercase tracking-[0.35em] text-white/60">
+                      Custom words
+                    </p>
+                    <textarea
+                      value={wordInput}
+                      onChange={(event) => setWordInput(event.target.value)}
+                      placeholder="apple, pear, lime"
+                      rows={3}
+                      className="mt-3 w-full resize-none rounded-xl bg-white/10 px-3 py-2 text-sm text-white/90 placeholder:text-white/40 focus:outline-none focus:ring-2 focus:ring-[#74d3ff]/70"
+                    />
+                    <button
+                      onClick={handleGenerate}
+                      className="mt-3 w-full rounded-xl bg-[#f7d35f] px-3 py-2 text-xs font-semibold uppercase tracking-[0.3em] text-[#2a220f] transition hover:brightness-95"
+                    >
+                      Generate board
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </div>
