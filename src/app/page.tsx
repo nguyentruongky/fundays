@@ -461,8 +461,7 @@ const pickRandomTopic = (exclude?: Topic) => {
   }
   let candidate = exclude;
   while (candidate.name === exclude.name) {
-    candidate =
-      TOPIC_LIBRARY[Math.floor(Math.random() * TOPIC_LIBRARY.length)];
+    candidate = TOPIC_LIBRARY[Math.floor(Math.random() * TOPIC_LIBRARY.length)];
     if (TOPIC_LIBRARY.length === 1) {
       break;
     }
@@ -537,11 +536,8 @@ const createInitialGame = () => {
   };
 };
 
-const isValidCell = (
-  row: number,
-  col: number,
-  rowLengths: number[],
-) => col >= 0 && row >= 0 && row < rowLengths.length && col < rowLengths[row];
+const isValidCell = (row: number, col: number, rowLengths: number[]) =>
+  col >= 0 && row >= 0 && row < rowLengths.length && col < rowLengths[row];
 
 const findPlacement = (
   grid: (string | null)[][],
@@ -664,14 +660,7 @@ const buildBoard = (
     const grid = createLetterGrid(rows, cols);
     let placedAll = true;
     for (const word of ordered) {
-      const placement = findPlacement(
-        grid,
-        word,
-        mode,
-        rows,
-        cols,
-        rowLengths,
-      );
+      const placement = findPlacement(grid, word, mode, rows, cols, rowLengths);
       if (!placement) {
         placedAll = false;
         break;
@@ -793,6 +782,7 @@ export default function Home() {
   const [tiles, setTiles] = useState<Record<string, Tile>>(initialBoard.tiles);
   const boardRef = useRef<HTMLDivElement>(null);
   const hintTimerRef = useRef<number | null>(null);
+  const toastTimerRef = useRef<number | null>(null);
   const [wordInput, setWordInput] = useState(initialWords.join(", "));
   const needsNormalizationRef = useRef(true);
 
@@ -806,9 +796,10 @@ export default function Home() {
   const [clearing, setClearing] = useState<string[]>([]);
   const [hintPath, setHintPath] = useState<string[]>([]);
   const [, setEarned] = useState<string[]>([]);
-  const [, setMessage] = useState(
+  const [message, setMessage] = useState(
     "Swipe across adjacent tiles to earn the word.",
   );
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [locked, setLocked] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -931,7 +922,6 @@ export default function Home() {
   const columnMap = columnLayout.map;
   const displayCols = columnLayout.count;
 
-  /* eslint-disable react-hooks/set-state-in-effect */
   useLayoutEffect(() => {
     const prev = prevPositionsRef.current;
     const nextOffsets: Record<string, { x: number; y: number }> = {};
@@ -964,7 +954,6 @@ export default function Home() {
     setGrid((prev) => normalizeGrid(prev, rows, cols, rowLengths));
     needsNormalizationRef.current = false;
   }, [grid, rows, cols, rowLengths]);
-  /* eslint-enable react-hooks/set-state-in-effect */
 
   const tilesInPlay = useMemo(() => {
     const items: Array<{
@@ -1052,15 +1041,15 @@ export default function Home() {
       setSelected([]);
       setHintPath([]);
       setIsDragging(false);
-    setMessage(`Great! ${word} cleared.`);
-    setEarned((prev) => {
-      if (prev.includes(word)) {
-        return prev;
-      }
-      return [word, ...prev].slice(0, 4);
-    });
-    const nextRemaining = remainingWords.filter((entry) => entry !== word);
-    setRemainingWords(nextRemaining);
+      setMessage(`Great! ${word} cleared.`);
+      setEarned((prev) => {
+        if (prev.includes(word)) {
+          return prev;
+        }
+        return [word, ...prev].slice(0, 4);
+      });
+      const nextRemaining = remainingWords.filter((entry) => entry !== word);
+      setRemainingWords(nextRemaining);
       setActiveCount((prev) => {
         if (nextRemaining.length === 0) {
           return 0;
@@ -1071,16 +1060,16 @@ export default function Home() {
         return Math.min(prev + 1, ACTIVE_WORD_LIMIT, nextRemaining.length);
       });
 
-    const removed = new Set(selection);
-    window.setTimeout(() => {
-      setGrid((prev) => applyRemoval(prev, removed, rows, cols, rowLengths));
-      setClearing([]);
-      setLocked(false);
-    }, 350);
-    setFoundHistory((prev) => (prev.includes(word) ? prev : [...prev, word]));
-  },
-  [remainingWords, rows, cols, rowLengths],
-);
+      const removed = new Set(selection);
+      window.setTimeout(() => {
+        setGrid((prev) => applyRemoval(prev, removed, rows, cols, rowLengths));
+        setClearing([]);
+        setLocked(false);
+      }, 350);
+      setFoundHistory((prev) => (prev.includes(word) ? prev : [...prev, word]));
+    },
+    [remainingWords, rows, cols, rowLengths],
+  );
 
   const finishSelection = useCallback(() => {
     if (!isDragging) {
@@ -1211,7 +1200,7 @@ export default function Home() {
         if (!isValidCell(row, col, rowLengths) || !id) {
           return null;
         }
-              const letter = tiles[id]?.letter ?? "";
+        const letter = tiles[id]?.letter ?? "";
         if (letter !== word[index]) {
           return null;
         }
@@ -1266,6 +1255,17 @@ export default function Home() {
     [grid, mode, rows, cols, rowLengths, tiles],
   );
 
+  const showToast = useCallback((text: string) => {
+    setToastMessage(text);
+    if (toastTimerRef.current) {
+      window.clearTimeout(toastTimerRef.current);
+    }
+    toastTimerRef.current = window.setTimeout(() => {
+      setToastMessage(null);
+      toastTimerRef.current = null;
+    }, 2500);
+  }, []);
+
   const resetBoard = useCallback(
     (words: string[], nextMessage: string, modeOverride?: Mode) => {
       const nextMode = modeOverride ?? mode;
@@ -1278,7 +1278,9 @@ export default function Home() {
         layout.rowLengths,
       );
       if (!board) {
-        setMessage("Couldn't place all words. Try different words.");
+        const errorText = "Couldn't place all words. Try different words.";
+        setMessage(errorText);
+        showToast("Could not generate the board. Try a shorter list.");
         return false;
       }
       setTiles(board.tiles);
@@ -1297,7 +1299,7 @@ export default function Home() {
       setFoundHistory([]);
       return true;
     },
-    [mode],
+    [mode, showToast],
   );
 
   const handleHint = useCallback(() => {
@@ -1345,9 +1347,7 @@ export default function Home() {
         hintTimerRef.current = null;
       }
       const shouldPickNewTopic = forceNewTopic || remainingWords.length === 0;
-      const nextTopic = shouldPickNewTopic
-        ? pickRandomTopic(topic)
-        : topic;
+      const nextTopic = shouldPickNewTopic ? pickRandomTopic(topic) : topic;
       const nextWords =
         remainingWords.length > 0 && !forceNewTopic
           ? remainingWords
@@ -1369,7 +1369,6 @@ export default function Home() {
   );
 
   const victoryHandledRef = useRef(false);
-  /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     if (remainingWords.length > 0) {
       victoryHandledRef.current = false;
@@ -1383,7 +1382,6 @@ export default function Home() {
     setVictoryOpen(true);
     setSettingsOpen(false);
   }, [remainingWords]);
-  /* eslint-enable react-hooks/set-state-in-effect */
 
   const handleModeChange = (nextMode: Mode) => {
     if (mode === nextMode || lockedRef.current) {
@@ -1413,29 +1411,26 @@ export default function Home() {
     }
   };
 
-  const parseWords = useCallback(
-    (input: string) => {
-      const tokens = input.toUpperCase().match(/[A-Z]+/g) ?? [];
-      const unique: string[] = [];
-      const seen = new Set<string>();
-      tokens.forEach((token) => {
-        if (token.length < 2) {
-          return;
-        }
-        if (!seen.has(token)) {
-          seen.add(token);
-          unique.push(token);
-        }
-      });
-      let warning: string | null = null;
-      const maxWords = 10;
-      if (unique.length > maxWords) {
-        warning = `Using first ${maxWords} words.`;
+  const parseWords = useCallback((input: string) => {
+    const tokens = input.toUpperCase().match(/[A-Z]+/g) ?? [];
+    const unique: string[] = [];
+    const seen = new Set<string>();
+    tokens.forEach((token) => {
+      if (token.length < 2) {
+        return;
       }
-      return { words: unique.slice(0, maxWords), warning };
-    },
-    [],
-  );
+      if (!seen.has(token)) {
+        seen.add(token);
+        unique.push(token);
+      }
+    });
+    let warning: string | null = null;
+    const maxWords = 10;
+    if (unique.length > maxWords) {
+      warning = `Using first ${maxWords} words.`;
+    }
+    return { words: unique.slice(0, maxWords), warning };
+  }, []);
 
   const handleGenerate = () => {
     if (lockedRef.current) {
@@ -1464,11 +1459,10 @@ export default function Home() {
   const boardHeight = rows * tileSize + (rows - 1) * tileGap;
   const boardShellWidth = boardWidth + 48;
   const score = foundWords.length * 120;
-  const horizontalOffset =
-    ((cols - displayCols) / 2) * (tileSize + tileGap);
+  const horizontalOffset = ((cols - displayCols) / 2) * (tileSize + tileGap);
 
   return (
-    <div className="relative min-h-screen overflow-hidden bg-[#0b1726] text-slate-100">
+    <div className="relative h-screen overflow-hidden bg-[#0b1726] text-slate-100">
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,#21406a,transparent_55%)] opacity-80" />
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_10%_85%,#f7d35f40,transparent_55%)]" />
       <div className="absolute -left-20 -top-24 h-72 w-72 rounded-full bg-[#173053] blur-3xl" />
@@ -1514,21 +1508,22 @@ export default function Home() {
               maxWidth: "clamp(280px, 100%, 720px)",
             }}
           >
-          <div
-            ref={boardRef}
-            onPointerMove={handleBoardPointerMove}
-            className="relative touch-none rounded-[34px] bg-white/5 p-6 shadow-[0_24px_40px_rgba(0,0,0,0.4)] ring-1 ring-white/20"
-          >
             <div
-              className="relative mx-auto"
-              style={{ width: boardWidth, height: boardHeight }}
+              ref={boardRef}
+              onPointerMove={handleBoardPointerMove}
+              className="relative touch-none rounded-[34px] bg-white/5 p-6 shadow-[0_24px_40px_rgba(0,0,0,0.4)] ring-1 ring-white/20"
             >
+              <div
+                className="relative mx-auto"
+                style={{ width: boardWidth, height: boardHeight }}
+              >
                 {tilesInPlay.map((tile) => {
                   const isSelected = selected.includes(tile.id);
                   const isClearing = clearing.includes(tile.id);
                   const isHinted = hintPath.includes(tile.id);
                   const columnIndex = columnMap[tile.col] ?? 0;
-                  const x = columnIndex * (tileSize + tileGap) + horizontalOffset;
+                  const x =
+                    columnIndex * (tileSize + tileGap) + horizontalOffset;
                   const y = tile.row * (tileSize + tileGap);
                   const scale = isClearing ? 0.2 : isSelected ? 1.05 : 1;
                   const rotate = isClearing ? -8 : 0;
@@ -1590,6 +1585,14 @@ export default function Home() {
         </main>
       </div>
 
+      {toastMessage ? (
+        <div className="pointer-events-none fixed inset-x-4 bottom-6 z-50 flex justify-center">
+          <div className="rounded-2xl bg-white/90 px-4 py-2 text-[0.65rem] font-semibold uppercase tracking-[0.4em] text-[#0f2238] shadow-[0_10px_40px_rgba(0,0,0,0.4)]">
+            {toastMessage}
+          </div>
+        </div>
+      ) : null}
+
       <button
         onClick={handleHint}
         className="fixed bottom-6 right-6 z-20 flex h-14 w-14 items-center justify-center rounded-full bg-white/10 text-2xl shadow-[0_10px_20px_rgba(0,0,0,0.45)] transition hover:bg-white/20 sm:hidden"
@@ -1635,9 +1638,7 @@ export default function Home() {
                   <button
                     key={tab.key}
                     onClick={() =>
-                      setSettingsTab(
-                        tab.key as "common" | "default" | "custom",
-                      )
+                      setSettingsTab(tab.key as "common" | "default" | "custom")
                     }
                     className={`flex-1 rounded-full px-4 py-2 text-[0.65rem] sm:text-xs font-semibold uppercase tracking-[0.35em] transition ${
                       active
@@ -1686,8 +1687,7 @@ export default function Home() {
                         {
                           key: "line",
                           label: "Row/Col",
-                          description:
-                            "Longest word sets the grid width.",
+                          description: "Longest word sets the grid width.",
                         },
                       ].map((option) => {
                         const active = mode === option.key;
@@ -1712,7 +1712,9 @@ export default function Home() {
                               type="radio"
                               name="mode"
                               checked={active}
-                              onChange={() => handleModeChange(option.key as Mode)}
+                              onChange={() =>
+                                handleModeChange(option.key as Mode)
+                              }
                               className="hidden"
                             />
                             <span
@@ -1736,11 +1738,12 @@ export default function Home() {
                     <p className="text-xs uppercase tracking-[0.35em] text-white/60">
                       Hidden words
                     </p>
-                   
                   </div>
                   <div className="flex flex-wrap gap-2">
                     {wordList.length === 0 ? (
-                      <span className="text-sm text-white/60">Loading words</span>
+                      <span className="text-sm text-white/60">
+                        Loading words
+                      </span>
                     ) : (
                       wordList.map((word) => {
                         const found = foundWords.includes(word);
